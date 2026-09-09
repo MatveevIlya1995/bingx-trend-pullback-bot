@@ -10,7 +10,7 @@ This is the sibling of [bingx-order-block-bot](https://github.com/MatveevIlya199
 2. **Daily (trend confirmation)** -- the same EMA-slope read on daily closes. If it directly contradicts the weekly trend, the symbol is skipped for the cycle (`strategy.combine_htf_bias`). Unlike the order-block bot, there is **no** weekly/daily override here -- this bot never trades against its weekly trend, keeping the rule simple and unconditional.
 3. **Daily (pullback zone)** -- has the daily chart pulled back to (but not broken through) a daily EMA "value zone" in the weekly trend's direction? See `strategy.daily_pullback_zone()`.
 4. **4h (entry trigger)** -- has the 4h chart just crossed back to the trend side of its fast EMA? See `strategy.entry_trigger()`. This is edge-triggered, so it fires once per pullback without needing extra zone-dedup bookkeeping (unlike the order-block bot's zone tracking).
-5. **Stop-loss & take-profit** -- the stop sits just beyond the 4h chart's nearest confirmed swing low/high (`strategy.build_entry`); take-profit is a fixed 2:1 reward:risk target. Position size is chosen two ways at once and the smaller wins: risk-based (capped at 3% of equity) and margin-based (`risk_manager.position_size`).
+5. **Stop-loss & take-profit** -- the stop sits just beyond the 4h chart's nearest confirmed swing low/high (`strategy.build_entry`); take-profit is a fixed 2:1 reward:risk target. Position size is a fixed `MARGIN_PER_TRADE_USDT` of margin; leverage is then chosen automatically (up to a 10x hard cap) so a stop-out never loses more than `RISK_PCT_PER_TRADE` of equity, itself hard-capped at 3% (`risk_manager.position_size`).
 6. **Partial take-profit + trailing stop** -- at `PARTIAL_TP_R_MULTIPLE` times the initial risk (1R by default), `PARTIAL_TP_FRACTION` of the position (50% by default) closes and the stop for the remainder moves to breakeven. From there the remainder trails `TRAIL_R_MULTIPLE` behind the best price reached so far, with no fixed cap -- identical mechanics to the order-block bot (`risk_manager.py` is a direct port).
 
 See `bot.py`'s module docstring for the full per-cycle sequence, and `strategy.py`'s module docstring for the entry logic in detail.
@@ -86,7 +86,7 @@ Or use the included `.github/workflows/bot.yml` (runs every 15 minutes via GitHu
 | `STOP_BUFFER_PCT` | `0.15` | Extra room (%) beyond the nearest confirmed 4h swing used for the stop-loss |
 | `REWARD_RISK_RATIO` | `2` | Ignored: always forced to 2 (partial-TP/trailing usually manage the runner well past this before it's ever hit as a full exit) |
 | `RISK_PCT_PER_TRADE` | `0.5` | % of account equity risked per trade; hard-capped at 3% regardless |
-| `LEVERAGE` | `3` | Requested leverage; hard-capped at 10x regardless |
+| `MARGIN_PER_TRADE_USDT` | `50` | Fixed USDT margin committed per trade; leverage is chosen automatically (up to a 10x hard cap) so a stop-out never loses more than `RISK_PCT_PER_TRADE` of equity |
 | `MAX_MARGIN_UTILIZATION_PCT` | `50` | Open positions combined may never require more than this % of equity*leverage in margin |
 | `MAX_DAILY_LOSS_PCT` | `3` | Daily realized-loss % that halts new entries for the rest of the UTC day |
 | `MAX_CONCURRENT_POSITIONS` | `1` | Won't open a new position while this many are already open (counts DRY_RUN paper trades the same as LIVE) |
