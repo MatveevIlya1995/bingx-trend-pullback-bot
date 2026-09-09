@@ -34,11 +34,13 @@ Each run:
 6. builds the stop-loss (just beyond the 4h chart's nearest confirmed
    swing low/high) and a fixed-reward:risk take-profit -- see
    strategy.build_entry()
-7. sizes each position by fixed fractional risk, hard-capped at 3% of
-   equity, AND separately capped so it never requires more margin than
-   MAX_MARGIN_UTILIZATION_PCT of the account's theoretical capacity at
-   the configured leverage -- identical mechanics to the order-block bot,
-   see risk_manager.position_size() and config.py.
+7. sizes each position from a FIXED margin (MARGIN_PER_TRADE_USDT) and
+   picks whatever leverage -- up to the hard cap -- keeps a stop-out loss
+   at or under RISK_PCT_PER_TRADE of equity (itself hard-capped at 3%),
+   skipping the trade if even 1x leverage would risk more than that; also
+   caps notional so open positions combined never require more margin
+   than MAX_MARGIN_UTILIZATION_PCT of the account's theoretical capacity
+   at the chosen leverage -- see risk_manager.position_size() and config.py.
 8. if DRY_RUN=true (the default), logs what it WOULD do and starts
    tracking it so step 3 can resolve it on a future cycle
 9. if DRY_RUN=false, sets leverage and submits entry + stop-loss +
