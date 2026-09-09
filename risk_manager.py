@@ -629,32 +629,51 @@ class RiskManager:
 
     def position_size(
         self, equity: float, entry: float, stop_loss: float,
-        leverage: int | None = None, existing_notional: float = 0.0,
-    ) -> float:
-        """Size the position so a stop-out loses roughly risk_pct_per_trade
-        of equity, THEN cap that size so the position's notional (plus
-        whatever's already open) doesn't require more margin than
+        existing_notional: float = 0.0,
+    ) -> tuple:
+        """Sizes the position from a FIXED margin per trade
+        (cfg.margin_per_trade_usdt) and picks whatever leverage -- up to
+        max_leverage_hard_cap -- keeps a stop-out loss at or under
+        cfg.risk_pct_per_trade of equity (itself hard-capped at 3%, see
+        config.py). A tighter stop needs less leverage to hit that risk
+        target; a wider stop needs more. If even 1x leverage on the fixed
+        margin would already risk more than the cap given how wide this
+        stop is, returns (0.0, 0) so the caller skips the trade rather
+        than silently accepting more risk than the cap allows or using
+        less than the configured margin.
+
+        Also caps notional (margin * leverage) so this trade plus
+        whatever's already open doesn't require more margin than
         max_margin_utilization_pct of the account's theoretical capacity
-        at the given leverage. A tight stop-loss on its own can otherwise
-        make risk_amount / stop_distance far larger than the account can
-        actually margin -- this second cap is what keeps that in check.
-        Caller is still responsible for rounding to the exchange's amount
-        precision/step size before submitting."""
-        risk_amount = equity * self.cfg.risk_pct_per_trade
+        at the chosen leverage -- a backstop for when the leverage hard
+        cap alone isn't tight enough. Caller is still responsible for
+        rounding qty to the exchange's amount precision/step size before
+        submitting.
+
+        Returns (qty, leverage) -- leverage is 0 when qty is 0.
+        """
         stop_distance = abs(entry - stop_loss)
-        if stop_distance <= 0:
-            return 0.0
-        qty = risk_amount / stop_distance
+        if stop_distance <= 0 or entry <= 0 or equity <= 0:
+            return 0.0, 0
 
-        lev = leverage if leverage else self.safe_leverage()
-        max_total_notional = equity * lev * self.cfg.max_margin_utilization_pct
+        stop_distance_pct = stop_distance / entry
+        margin = self.cfg.margin_per_trade_usdt
+        risk_cap = equity * self.cfg.risk_pct_per_trade
+
+        # Max leverage that keeps a stop-out at or under the risk cap:
+        # risk = margin * leverage * stop_distance_pct <= risk_cap
+        max_leverage_for_risk = risk_cap / (margin * stop_distance_pct)
+        leverage = min(int(max_leverage_for_risk), self.cfg.max_leverage_hard_cap)
+        if leverage < 1:
+            return 0.0, 0
+
+        notional = margin * leverage
+        max_total_notional = equity * leverage * self.cfg.max_margin_utilization_pct
         available_notional = max(max_total_notional - existing_notional, 0.0)
-        if entry > 0:
-            qty = min(qty, available_notional / entry)
-        return max(qty, 0.0)
+        notional = min(notional, available_notional)
 
-    def safe_leverage(self) -> int:
-        return min(self.cfg.leverage, self.cfg.max_leverage_hard_cap)
+        qty = notional / entry
+        return max(qty, 0.0), leverage
 
     @staticmethod
     def new_trade_id() -> str:
