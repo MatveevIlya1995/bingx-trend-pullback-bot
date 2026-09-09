@@ -196,14 +196,16 @@ def _try_open_candidate(client, risk, cfg, candidate, equity):
     entry = candidate["entry"]
     trigger_desc = candidate["trigger_desc"]
 
-    leverage = risk.safe_leverage()
     existing_notional = risk.total_open_notional()
-    qty = risk.position_size(
+    qty, leverage = risk.position_size(
         equity, entry["entry"], entry["stop_loss"],
-        leverage=leverage, existing_notional=existing_notional,
+        existing_notional=existing_notional,
     )
     if qty <= 0:
-        print(f"[bot] {symbol}: computed position size was zero (risk-based size or margin cap) -- skipping.")
+        print(
+            f"[bot] {symbol}: no leverage up to the hard cap keeps a stop-out within the "
+            f"risk cap for this stop distance on ${cfg.margin_per_trade_usdt:.0f} margin -- skipping."
+        )
         return False
 
     notional = qty * entry["entry"]
@@ -216,7 +218,8 @@ def _try_open_candidate(client, risk, cfg, candidate, equity):
 
     print(
         f"[bot] {symbol}: signal {entry['side'].upper()} qty~{qty:.6f} "
-        f"entry~{entry['entry']:.2f} SL={entry['stop_loss']:.2f} TP={entry['take_profit']:.2f}"
+        f"entry~{entry['entry']:.2f} SL={entry['stop_loss']:.2f} TP={entry['take_profit']:.2f} "
+        f"lev={leverage}x margin~${notional / leverage:.2f}"
     )
 
     trade_id = risk.new_trade_id()
