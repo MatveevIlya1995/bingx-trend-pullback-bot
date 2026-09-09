@@ -186,7 +186,7 @@ def load_config() -> Config:
             f"clamping to 50."
         )
         cfg.margin_per_trade_usdt = 50.0
-if cfg.risk_pct_per_trade > cfg.max_risk_pct_per_trade_hard_cap:
+    if cfg.risk_pct_per_trade > cfg.max_risk_pct_per_trade_hard_cap:
         print(
             f"[config] RISK_PCT_PER_TRADE={cfg.risk_pct_per_trade * 100:.2f}% exceeds hard cap "
             f"({cfg.max_risk_pct_per_trade_hard_cap * 100:.0f}%); clamping."
