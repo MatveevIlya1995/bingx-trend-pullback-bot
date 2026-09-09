@@ -129,12 +129,14 @@ class Config:
     required_reward_risk_ratio: float = 2.0
     reward_risk_ratio: float = field(default_factory=lambda: float(_env("REWARD_RISK_RATIO", "2")))
 
-    # --- risk management (identical mechanics to the order-block bot) ---
+    # --- risk management: fixed margin per trade, leverage flexes to cap risk ---
     risk_pct_per_trade: float = field(
         default_factory=lambda: float(_env("RISK_PCT_PER_TRADE", "0.5")) / 100
     )
     max_risk_pct_per_trade_hard_cap: float = 0.03
-    leverage: int = field(default_factory=lambda: int(_env("LEVERAGE", "3")))
+    margin_per_trade_usdt: float = field(
+        default_factory=lambda: float(_env("MARGIN_PER_TRADE_USDT", "50"))
+    )
     max_leverage_hard_cap: int = 10
     max_margin_utilization_pct: float = field(
         default_factory=lambda: float(_env("MAX_MARGIN_UTILIZATION_PCT", "50")) / 100
@@ -178,13 +180,13 @@ class Config:
 
 def load_config() -> Config:
     cfg = Config()
-    if cfg.leverage > cfg.max_leverage_hard_cap:
+    if cfg.margin_per_trade_usdt <= 0:
         print(
-            f"[config] LEVERAGE={cfg.leverage} exceeds hard cap "
-            f"({cfg.max_leverage_hard_cap}); clamping."
+            f"[config] MARGIN_PER_TRADE_USDT={cfg.margin_per_trade_usdt} is not positive; "
+            f"clamping to 50."
         )
-        cfg.leverage = cfg.max_leverage_hard_cap
-    if cfg.risk_pct_per_trade > cfg.max_risk_pct_per_trade_hard_cap:
+        cfg.margin_per_trade_usdt = 50.0
+if cfg.risk_pct_per_trade > cfg.max_risk_pct_per_trade_hard_cap:
         print(
             f"[config] RISK_PCT_PER_TRADE={cfg.risk_pct_per_trade * 100:.2f}% exceeds hard cap "
             f"({cfg.max_risk_pct_per_trade_hard_cap * 100:.0f}%); clamping."
