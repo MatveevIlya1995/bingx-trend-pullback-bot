@@ -1,6 +1,6 @@
 {
-  "date": null,
-  "day_start_equity": null,
+  "date": "2026-09-09",
+  "day_start_equity": 265.3742,
   "realized_pnl_today": 0.0,
   "open_trades": [],
   "open_dry_run_trades": [],
