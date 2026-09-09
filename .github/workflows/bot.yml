@@ -1,0 +1,70 @@
+name: BingX Trend Pullback Bot
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: bingx-bot
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - name: Run one bot cycle
+        env:
+          BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
+          BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
+          SYMBOLS: ${{ vars.SYMBOLS }}
+          WEEKLY_TIMEFRAME: ${{ vars.WEEKLY_TIMEFRAME }}
+          DAILY_TIMEFRAME: ${{ vars.DAILY_TIMEFRAME }}
+          ENTRY_TIMEFRAME: ${{ vars.ENTRY_TIMEFRAME }}
+          WEEKLY_CANDLE_LIMIT: ${{ vars.WEEKLY_CANDLE_LIMIT }}
+          DAILY_CANDLE_LIMIT: ${{ vars.DAILY_CANDLE_LIMIT }}
+          ENTRY_CANDLE_LIMIT: ${{ vars.ENTRY_CANDLE_LIMIT }}
+          TREND_EMA_PERIOD: ${{ vars.TREND_EMA_PERIOD }}
+          REQUIRE_WEEKLY_TREND: ${{ vars.REQUIRE_WEEKLY_TREND }}
+          PULLBACK_EMA_PERIOD: ${{ vars.PULLBACK_EMA_PERIOD }}
+          PULLBACK_TOUCH_TOLERANCE_PCT: ${{ vars.PULLBACK_TOUCH_TOLERANCE_PCT }}
+          FRACTAL_N: ${{ vars.FRACTAL_N }}
+          TRIGGER_EMA_PERIOD: ${{ vars.TRIGGER_EMA_PERIOD }}
+          STOP_BUFFER_PCT: ${{ vars.STOP_BUFFER_PCT }}
+          REWARD_RISK_RATIO: ${{ vars.REWARD_RISK_RATIO }}
+          RISK_PCT_PER_TRADE: ${{ vars.RISK_PCT_PER_TRADE }}
+          LEVERAGE: ${{ vars.LEVERAGE }}
+          MAX_MARGIN_UTILIZATION_PCT: ${{ vars.MAX_MARGIN_UTILIZATION_PCT }}
+          MAX_DAILY_LOSS_PCT: ${{ vars.MAX_DAILY_LOSS_PCT }}
+          MAX_CONCURRENT_POSITIONS: ${{ vars.MAX_CONCURRENT_POSITIONS }}
+          MIN_NOTIONAL_USDT: ${{ vars.MIN_NOTIONAL_USDT }}
+          PARTIAL_TP_R_MULTIPLE: ${{ vars.PARTIAL_TP_R_MULTIPLE }}
+          PARTIAL_TP_FRACTION: ${{ vars.PARTIAL_TP_FRACTION }}
+          TRAIL_R_MULTIPLE: ${{ vars.TRAIL_R_MULTIPLE }}
+          DRY_RUN_FEE_PCT_PER_SIDE: ${{ vars.DRY_RUN_FEE_PCT_PER_SIDE }}
+          DRY_RUN: ${{ vars.DRY_RUN }}
+        run: python3 bot.py
+
+      - name: Persist bot state and trade journal back to the repo
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain data/ 2>/dev/null)" ]; then
+            git config user.name "bingx-bot"
+            git config user.email "actions@users.noreply.github.com"
+            git add data/state.json data/trades.csv 2>/dev/null || true
+            git commit -m "chore: update bot state and trade journal"
+            git push
+          else
+            echo "No state/journal changes to commit."
+          fi
