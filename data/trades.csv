@@ -1,2 +1,3 @@
 event,trade_id,timestamp_utc,mode,symbol,side,position_side,qty,price,stop_loss,take_profit,equity,trigger,pnl,duration_minutes
 ENTRY,5dca9855bd9d,2026-09-09T21:57:03.045772+00:00,DRY_RUN,TRX/USDT:USDT,BUY,LONG,589.570498,0.3392,0.3371,0.3436,265.37,"trend+pullback bullish: weekly=bullish, daily=bullish | daily pullback zone: daily EMA20=0.3341, last low=0.3338 (touched), last confirmed daily swing low=0.32075 (holding) | 4h trigger: close crossed back above EMA9, swing reference 0.3376",,
+EXIT,5dca9855bd9d,2026-09-11T14:31:28.220197+00:00,DRY_RUN,TRX/USDT:USDT,BUY,LONG,589.570498,0.3371,0.3371,0.3436,,stop_loss hit,-1.4375,2434.4
