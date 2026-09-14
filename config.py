@@ -130,8 +130,13 @@ class Config:
     reward_risk_ratio: float = field(default_factory=lambda: float(_env("REWARD_RISK_RATIO", "2")))
 
     # --- risk management: fixed margin per trade, leverage flexes to cap risk ---
+    # Target risk, as % of equity, that position_size() solves each
+    # trade's leverage for. Defaults to the hard cap itself (3%) -- i.e.
+    # every trade targets the maximum allowed risk given its own
+    # stop-loss distance. Lower this if you want trades to risk less
+    # than the 3% ceiling.
     risk_pct_per_trade: float = field(
-        default_factory=lambda: float(_env("RISK_PCT_PER_TRADE", "0.5")) / 100
+        default_factory=lambda: float(_env("RISK_PCT_PER_TRADE", "3")) / 100
     )
     max_risk_pct_per_trade_hard_cap: float = 0.03
     margin_per_trade_usdt: float = field(
