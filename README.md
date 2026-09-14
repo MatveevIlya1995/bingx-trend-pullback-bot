@@ -85,7 +85,7 @@ Or use the included `.github/workflows/bot.yml` (runs every 15 minutes via GitHu
 | `TRIGGER_EMA_PERIOD` | `9` | Fast 4h EMA the entry trigger crosses back over |
 | `STOP_BUFFER_PCT` | `0.15` | Extra room (%) beyond the nearest confirmed 4h swing used for the stop-loss |
 | `REWARD_RISK_RATIO` | `2` | Ignored: always forced to 2 (partial-TP/trailing usually manage the runner well past this before it's ever hit as a full exit) |
-| `RISK_PCT_PER_TRADE` | `0.5` | % of account equity risked per trade; hard-capped at 3% regardless |
+| `RISK_PCT_PER_TRADE` | `3` | Target % of account equity risked per trade, used to solve each trade's leverage; hard-capped at 3% regardless (defaults to that same ceiling) |
 | `MARGIN_PER_TRADE_USDT` | `50` | Fixed USDT margin committed per trade; leverage is chosen automatically (up to a 10x hard cap) so a stop-out never loses more than `RISK_PCT_PER_TRADE` of equity |
 | `MAX_MARGIN_UTILIZATION_PCT` | `50` | Open positions combined may never require more than this % of equity*leverage in margin |
 | `MAX_DAILY_LOSS_PCT` | `3` | Daily realized-loss % that halts new entries for the rest of the UTC day |
