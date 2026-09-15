@@ -11,15 +11,16 @@
       "symbol": "SUI/USDT:USDT",
       "side": "SELL",
       "position_side": "SHORT",
-      "qty": 138.792505,
+      "qty": 69.3962525,
       "entry_price": 0.7205,
-      "stop_loss": 0.7271,
+      "stop_loss": 0.7205,
       "take_profit": 0.7073,
       "trigger": "trend+pullback bearish: weekly=bearish, daily=bearish | daily pullback zone: daily EMA20=0.7476, last high=0.7478 (touched), last confirmed daily swing high=0.8446 (holding) | 4h trigger: close crossed back below EMA9, swing reference 0.7260",
       "initial_qty": 138.792505,
       "risk_per_unit": 0.006599999999999939,
       "partial_tp_price": 0.7139000000000001,
-      "partial_taken": false
+      "partial_taken": true,
+      "trail_distance": 0.006599999999999939
     }
   ],
   "dry_run_signaled": {},
