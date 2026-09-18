@@ -5,24 +5,6 @@
   "open_trades": [],
   "open_dry_run_trades": [
     {
-      "trade_id": "57858d620611",
-      "entry_time_utc": "2026-09-16T20:17:33.910959+00:00",
-      "mode": "DRY_RUN",
-      "symbol": "BNB/USDT:USDT",
-      "side": "BUY",
-      "position_side": "LONG",
-      "qty": 0.034759,
-      "entry_price": 719.24,
-      "stop_loss": 746.1437,
-      "take_profit": 751.4526,
-      "trigger": "trend+pullback bullish: weekly=bullish, daily=bullish | daily pullback zone: daily EMA20=711.1379, last low=707.5000 (touched), last confirmed daily swing low=704.15 (holding) | 4h trigger: close crossed back above EMA9, swing reference 704.1900",
-      "initial_qty": 0.069518,
-      "risk_per_unit": 16.106300000000033,
-      "partial_tp_price": 735.3463,
-      "partial_taken": true,
-      "trail_distance": 16.106300000000033
-    },
-    {
       "trade_id": "99c326db734d",
       "entry_time_utc": "2026-09-18T05:11:24.397406+00:00",
       "mode": "DRY_RUN",
@@ -31,7 +13,7 @@
       "position_side": "LONG",
       "qty": 148.769675,
       "entry_price": 0.3361,
-      "stop_loss": 0.3361,
+      "stop_loss": 0.33614,
       "take_profit": 0.3426,
       "trigger": "trend+pullback bullish: weekly=bullish, daily=bullish | daily pullback zone: daily EMA20=0.3357, last low=0.3333 (touched), last confirmed daily swing low=0.3309 (holding) | 4h trigger: close crossed back above EMA9, swing reference 0.3333",
       "initial_qty": 297.53935,
