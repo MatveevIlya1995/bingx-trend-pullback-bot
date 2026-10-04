@@ -1,10 +1,10 @@
 {
-  "date": "2026-10-03",
-  "day_start_equity": 72.7029,
+  "date": "2026-10-04",
+  "day_start_equity": 3.9983,
   "realized_pnl_today": 0.0,
   "open_trades": [],
   "open_dry_run_trades": [],
   "dry_run_signaled": {},
   "traded_zones": {},
-  "last_seen_equity": 22.0439
+  "last_seen_equity": 3.9983
 }
