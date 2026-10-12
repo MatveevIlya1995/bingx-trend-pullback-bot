@@ -3,26 +3,7 @@
   "day_start_equity": 180.0791,
   "realized_pnl_today": 0.0,
   "open_trades": [],
-  "open_dry_run_trades": [
-    {
-      "trade_id": "fcdcd85464c2",
-      "entry_time_utc": "2026-10-11T15:05:57.271528+00:00",
-      "mode": "DRY_RUN",
-      "symbol": "ETH/USDT:USDT",
-      "side": "BUY",
-      "position_side": "LONG",
-      "qty": 0.008543,
-      "entry_price": 2505.06,
-      "stop_loss": 2542.8602,
-      "take_profit": 2576.1597,
-      "trigger": "trend+pullback bullish: weekly=bullish, daily=bullish | daily pullback zone: daily EMA20=2606.1659, last low=2484.8400 (touched), last confirmed daily swing low=2406.43 (holding) | 4h trigger: close crossed back above EMA9, swing reference 2473.2200",
-      "initial_qty": 0.017086,
-      "risk_per_unit": 35.54979999999978,
-      "partial_tp_price": 2540.6097999999997,
-      "partial_taken": true,
-      "trail_distance": 35.54979999999978
-    }
-  ],
+  "open_dry_run_trades": [],
   "dry_run_signaled": {},
   "traded_zones": {},
   "last_seen_equity": 180.0791
