@@ -1,27 +1,9 @@
 {
-  "date": "2026-10-11",
-  "day_start_equity": 185.6012,
+  "date": "2026-10-12",
+  "day_start_equity": 180.0791,
   "realized_pnl_today": 0.0,
   "open_trades": [],
   "open_dry_run_trades": [
-    {
-      "trade_id": "a155169470a5",
-      "entry_time_utc": "2026-10-11T08:44:35.700673+00:00",
-      "mode": "DRY_RUN",
-      "symbol": "ZEC/USDT:USDT",
-      "side": "BUY",
-      "position_side": "LONG",
-      "qty": 0.0408255,
-      "entry_price": 1224.73,
-      "stop_loss": 1289.145,
-      "take_profit": 1244.4401,
-      "trigger": "trend+pullback bullish: weekly=bullish, daily=bullish | daily pullback zone: daily EMA20=1324.9207, last low=1202.9300 (touched), last confirmed daily swing low=1112.43 (holding) | 4h trigger: close crossed back above EMA9, swing reference 1216.7000",
-      "initial_qty": 0.081651,
-      "risk_per_unit": 9.855000000000018,
-      "partial_tp_price": 1234.585,
-      "partial_taken": true,
-      "trail_distance": 9.855000000000018
-    },
     {
       "trade_id": "fcdcd85464c2",
       "entry_time_utc": "2026-10-11T15:05:57.271528+00:00",
@@ -43,5 +25,5 @@
   ],
   "dry_run_signaled": {},
   "traded_zones": {},
-  "last_seen_equity": 135.7873
+  "last_seen_equity": 180.0791
 }
