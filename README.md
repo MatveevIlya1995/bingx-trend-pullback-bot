@@ -11,7 +11,7 @@ The repo name is historical: until October 2026 this bot traded a weekly-trend /
 3. **Optional momentum filter** (`MOMENTUM_FILTER`, off by default) -- longs only in the strongest `MOMENTUM_TOP_FRACTION` of watched coins by `MOMENTUM_LOOKBACK_DAYS` return, shorts only in the weakest. When more signals fire than free slots, the strongest momentum goes first.
 4. **Initial stop** -- `STOP_ATR_MULT` (2.5) x ATR(`ATR_PERIOD`, 14) of the 4h chart from the entry (`strategy.build_trend_entry`).
 5. **Trailing stop, no take-profit** -- the stop trails `TRAIL_ATR_MULT` (3) x ATR behind the best price since entry, moving only in the trade's favour. The trade ends when it is hit (`risk_manager.py`).
-6. **Sizing** -- a fixed `MARGIN_PER_TRADE_USDT` of margin, with leverage (10x cap) chosen so a stop-out loses at most `RISK_PCT_PER_TRADE` of equity, itself hard-capped at 3% (`risk_manager.position_size`).
+6. **Volatility sizing** -- position size = (`RISK_PCT_PER_TRADE` of equity) / stop distance, so every trade risks the same amount whatever the coin's volatility. `MARGIN_PER_TRADE_USDT` is the most margin one trade may use; leverage is the lowest that fits (10x cap), and risk is hard-capped at 3% (`risk_manager.position_size`).
 
 Trend following makes money on a few large winners and loses small amounts on many false breakouts; a 30-45% win rate is normal.
 
@@ -86,7 +86,7 @@ Or use the included `.github/workflows/bot.yml` (runs every 15 minutes via GitHu
 | `MOMENTUM_LOOKBACK_DAYS` | `30` | Momentum measured over this many days |
 | `MOMENTUM_TOP_FRACTION` | `0.5` | Share of coins counted as strongest / weakest |
 | `RISK_PCT_PER_TRADE` | `3` | % of equity lost at the initial stop; hard-capped at 3% |
-| `MARGIN_PER_TRADE_USDT` | `50` | Fixed margin per trade; leverage (10x cap) flexes to hit the risk |
+| `MARGIN_PER_TRADE_USDT` | `50` | Most margin one trade may use; leverage is the lowest that fits (10x cap) |
 | `MAX_MARGIN_UTILIZATION_PCT` | `50` | Cap on margin used by all open positions together |
 | `MAX_DAILY_LOSS_PCT` | `3` | Daily loss that halts new entries until the next UTC day |
 | `MAX_CONCURRENT_POSITIONS` | `1` | Maximum open positions (paper trades count) |

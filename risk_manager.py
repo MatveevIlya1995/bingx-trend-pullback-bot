@@ -28,6 +28,7 @@ has not been verified against a real account; validate it with a small
 real trade before trusting it (see the README).
 """
 import csv
+import math
 import json
 import os
 import uuid
@@ -473,24 +474,21 @@ class RiskManager:
         self, equity: float, entry: float, stop_loss: float,
         existing_notional: float = 0.0,
     ) -> tuple:
-        """Sizes the position from a FIXED margin per trade
-        (cfg.margin_per_trade_usdt) and picks whatever leverage -- up to
-        max_leverage_hard_cap -- keeps a stop-out loss at or under
-        cfg.risk_pct_per_trade of equity (itself hard-capped at 3%, see
-        config.py). A tighter stop needs less leverage to hit that risk
-        target; a wider stop needs more. If even 1x leverage on the fixed
-        margin would already risk more than the cap given how wide this
-        stop is, returns (0.0, 0) so the caller skips the trade rather
-        than silently accepting more risk than the cap allows or using
-        less than the configured margin.
+        """Volatility sizing: the position is sized so that a stop-out
+        loses cfg.risk_pct_per_trade of equity (hard-capped at 3%):
+        notional = risk / stop distance. A wide-stop (volatile) coin gets a
+        smaller position, a tight-stop coin a larger one, so every trade
+        carries the same risk.
 
-        Also caps notional (margin * leverage) so this trade plus
-        whatever's already open doesn't require more margin than
-        max_margin_utilization_pct of the account's theoretical capacity
-        at the chosen leverage -- a backstop for when the leverage hard
-        cap alone isn't tight enough. Caller is still responsible for
-        rounding qty to the exchange's amount precision/step size before
-        submitting.
+        cfg.margin_per_trade_usdt is the MOST margin one trade may use.
+        Leverage is the lowest whole number that fits the position in that
+        margin, up to max_leverage_hard_cap; if even the cap can't fit it,
+        the position is shrunk (risking less than the target). Small
+        positions run at 1x with less margin.
+
+        Also caps notional so all open positions together never need more
+        than max_margin_utilization_pct of equity as margin at this
+        leverage. The caller rounds qty to the exchange's step size.
 
         Returns (qty, leverage) -- leverage is 0 when qty is 0.
         """
@@ -499,23 +497,21 @@ class RiskManager:
             return 0.0, 0
 
         stop_distance_pct = stop_distance / entry
-        margin = self.cfg.margin_per_trade_usdt
+        max_margin = self.cfg.margin_per_trade_usdt
         risk_cap = equity * self.cfg.risk_pct_per_trade
 
-        # Max leverage that keeps a stop-out at or under the risk cap:
-        # risk = margin * leverage * stop_distance_pct <= risk_cap
-        max_leverage_for_risk = risk_cap / (margin * stop_distance_pct)
-        leverage = min(int(max_leverage_for_risk), self.cfg.max_leverage_hard_cap)
-        if leverage < 1:
-            return 0.0, 0
+        notional = risk_cap / stop_distance_pct
+        leverage = max(1, math.ceil(notional / max_margin))
+        if leverage > self.cfg.max_leverage_hard_cap:
+            leverage = self.cfg.max_leverage_hard_cap
+            notional = max_margin * leverage
 
-        notional = margin * leverage
         max_total_notional = equity * leverage * self.cfg.max_margin_utilization_pct
         available_notional = max(max_total_notional - existing_notional, 0.0)
         notional = min(notional, available_notional)
 
         qty = notional / entry
-        return max(qty, 0.0), leverage
+        return (qty, leverage) if qty > 0 else (0.0, 0)
 
     @staticmethod
     def new_trade_id() -> str:
