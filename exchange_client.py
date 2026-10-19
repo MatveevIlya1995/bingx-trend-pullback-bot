@@ -87,10 +87,12 @@ class ExchangeClient:
 
         opposite = "sell" if side == "buy" else "buy"
         sl_params = {"positionSide": position_side, "stopPrice": stop_loss_price, "reduceOnly": True}
-        tp_params = {"positionSide": position_side, "stopPrice": take_profit_price, "reduceOnly": True}
-
         self.exchange.create_order(symbol, "STOP_MARKET", opposite, amount, None, sl_params)
-        self.exchange.create_order(symbol, "TAKE_PROFIT_MARKET", opposite, amount, None, tp_params)
+        # Trend following exits on the trailing stop only, so take_profit_price
+        # is normally None and no take-profit order is placed.
+        if take_profit_price:
+            tp_params = {"positionSide": position_side, "stopPrice": take_profit_price, "reduceOnly": True}
+            self.exchange.create_order(symbol, "TAKE_PROFIT_MARKET", opposite, amount, None, tp_params)
         return order
 
     def close_partial_position(self, symbol: str, side: str, amount: float, position_side: str):

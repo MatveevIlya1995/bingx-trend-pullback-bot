@@ -1,57 +1,49 @@
 """
-Trend + pullback strategy, analyzed on exactly three timeframes: weekly,
-daily and 4h. There is no 15m/1h "noise" level in this bot -- the entry
-decision is made entirely from the weekly trend, the daily pullback, and
-the 4h trigger.
+Trend-following strategy: 4h Donchian breakout, filtered by the daily
+trend, with ATR-based stops that trail the trend and no fixed target.
+
+Why this design
+---------------
+Published research on crypto finds that trends persist on multi-day
+horizons (weekly momentum, multi-day moving-average and breakout rules),
+while intraday signals rarely beat fees. Trend following makes money from
+a few large winners and loses small amounts on many false breakouts, so
+the two things that matter most are (1) never capping a winner with a
+fixed take-profit and (2) keeping each loss to a fixed slice of equity.
 
 How a trade gets taken
------------------------
-1. Weekly (primary trend) -- an EMA-slope trend read (see detect_trend())
-   on weekly closes. The weekly trend must be clearly bullish or bearish
-   for this strategy to look for a trade at all: a pullback needs a trend
-   to pull back from, so a neutral weekly reading skips the symbol this
-   cycle (see config.require_weekly_trend).
+----------------------
+1. Daily trend filter -- detect_trend() on CLOSED daily candles: last
+   close above a rising EMA(TREND_EMA_PERIOD, default 50) = bullish,
+   below a falling one = bearish, anything else = neutral (no trade).
+   Longs only in a bullish daily trend, shorts only in a bearish one.
 
-2. Daily (primary trend + pullback zone) -- the same EMA-slope trend read
-   is computed on daily closes. If it directly contradicts the weekly
-   trend (one bullish, one bearish -- see combine_htf_bias()), the symbol
-   is skipped: this strategy only ever trades WITH the weekly trend, and
-   only when the daily chart isn't actively fighting it. Unlike the
-   order-block bot, there is no weekly/daily override here -- keeping the
-   conflict rule simple and unconditional makes this strategy's behavior
-   easy to reason about.
+2. 4h breakout trigger -- donchian_breakout(): the last CLOSED 4h candle
+   closes above the highest high of the previous BREAKOUT_LOOKBACK 4h
+   candles (default 20, about 3.3 days) for a long, or below the lowest
+   low for a short. It is edge-triggered: it fires only on the FIRST
+   candle that closes outside the channel, so the bot doesn't chase a
+   move that broke out days ago.
 
-   Separately, the daily chart is also where the "pullback" itself is
-   identified: has price on the daily chart pulled back far enough, but
-   not too far, to be a tradeable retracement inside the weekly trend?
-   See daily_pullback_zone() -- it checks that the most recent daily
-   candle has touched a daily EMA "value zone" (pullback_ema_period,
-   default 20) without closing beyond the daily chart's own last
-   confirmed swing low/high (which would mean the pullback has already
-   gone deep enough to look like a possible reversal, not a pullback).
+3. Optional momentum filter (MOMENTUM_FILTER, see bot.py): rank every
+   watched symbol by its MOMENTUM_LOOKBACK_DAYS return and only take
+   longs in the strongest MOMENTUM_TOP_FRACTION of coins and shorts in the
+   weakest -- the cross-sectional momentum factor.
 
-3. 4h (entry trigger) -- once the daily pullback zone is active, the 4h
-   chart is watched for the actual entry trigger: a 4h close crossing
-   back to the trend side of a fast 4h EMA (trigger_ema_period, default
-   9) that it was on the wrong side of the previous 4h candle -- see
-   entry_trigger(). This is the timing mechanism: the daily pullback zone
-   says "a pullback is happening", the 4h trigger says "and it just
-   turned back in our favor".
-
-Stop-loss & take-profit -- the stop-loss sits just beyond the 4h chart's
-own most recently confirmed swing low (LONG) or swing high (SHORT) -- see
-nearest_confirmed_swing_level(), reused from the same N-bar fractal
-definition as the order-block bot. If no confirmed 4h swing exists yet in
-the fetched window, falls back to the lowest low / highest high of the
-last few 4h candles. Take-profit is a fixed reward:risk multiple
-(config.py hard-enforces 2:1 regardless of what REWARD_RISK_RATIO is set
-to); the position sizer in risk_manager.py separately hard-caps the
-stop-loss risk itself at 3% of equity, and risk_manager.py's partial
-take-profit + trailing stop manage the runner beyond that fixed target
-exactly as they do for the order-block bot.
+Stops and exits
+---------------
+- Initial stop: STOP_ATR_MULT x ATR(ATR_PERIOD) beyond the entry
+  (default 2.5 x ATR14 on 4h). Wide enough to survive normal noise.
+- Trailing stop: from the first candle, the stop trails
+  TRAIL_ATR_MULT x ATR (default 3, the ATR measured at entry) behind the
+  best price reached -- a "chandelier" stop. It only ever moves in the
+  trade's favour; the initial stop stays until the trail passes it.
+- No take-profit order: the trade ends only when the trailing stop is hit.
+- Size: risk_manager.position_size() keeps a stop-out at or below
+  RISK_PCT_PER_TRADE of equity.
 """
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 
 def ohlcv_to_df(raw) -> pd.DataFrame:
@@ -70,258 +62,104 @@ _TIMEFRAME_MINUTES = {
 }
 
 
-def drop_incomplete_last_candle(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
-    """ccxt's fetch_ohlcv typically includes the currently-forming candle
-    as the last row. Every trend/pullback/trigger function in this
-    strategy should only ever see CLOSED candles -- an in-progress
-    candle's close is still moving and can cross an EMA back and forth
-    before it actually closes, which would make entry_trigger()'s
-    edge-detection fire on noise instead of a real, settled close.
-
-    Drops the last row if its close time (its open time + one
-    timeframe) is still in the future. A no-op for unrecognized
-    timeframe strings or an empty df, so callers don't need to special-
-    case those."""
+def drop_incomplete_last_candle(df: pd.DataFrame, timeframe: str, now=None) -> pd.DataFrame:
+    """ccxt's fetch_ohlcv usually includes the still-forming candle as the
+    last row. Every signal here must see CLOSED candles only, so drop the
+    last row if its close time is still in the future. `now` can be
+    passed in (naive UTC Timestamp) by the backtest."""
     minutes = _TIMEFRAME_MINUTES.get(timeframe)
     if minutes is None or df.empty:
         return df
-    last_open = df.iloc[-1]["ts"]
-    close_time = last_open + pd.Timedelta(minutes=minutes)
-    now = pd.Timestamp.now(tz="UTC").tz_localize(None)
+    close_time = df.iloc[-1]["ts"] + pd.Timedelta(minutes=minutes)
+    if now is None:
+        now = pd.Timestamp.now(tz="UTC").tz_localize(None)
     if close_time > now:
         return df.iloc[:-1].reset_index(drop=True)
     return df
 
 
 def detect_trend(df: pd.DataFrame, ema_period: int = 50) -> str:
-    """Trend filter based on an EMA of closes. Returns "bullish" if the
-    last close is above a rising EMA(ema_period), "bearish" if it's below
-    a falling EMA, and "neutral" if there isn't enough data yet or the
-    EMA is flat/ambiguous."""
+    """"bullish" if the last close is above a rising EMA(ema_period),
+    "bearish" if below a falling one, else "neutral" (also when there
+    isn't enough history)."""
     if len(df) < ema_period + 2:
         return "neutral"
     ema = df["close"].ewm(span=ema_period, adjust=False).mean()
     last_close = df["close"].iloc[-1]
-    last_ema = ema.iloc[-1]
-    prev_ema = ema.iloc[-2]
-    if last_close > last_ema and last_ema > prev_ema:
+    if last_close > ema.iloc[-1] and ema.iloc[-1] > ema.iloc[-2]:
         return "bullish"
-    if last_close < last_ema and last_ema < prev_ema:
+    if last_close < ema.iloc[-1] and ema.iloc[-1] < ema.iloc[-2]:
         return "bearish"
     return "neutral"
 
 
-def combine_htf_bias(trends: list) -> str | None:
-    """Fold a list of "bullish"/"bearish"/"neutral" readings into one
-    overall bias: neutral readings are skipped; if every non-neutral
-    reading agrees, that direction is returned; if any two disagree,
-    returns "conflict"; if every level is neutral, returns None (no
-    opinion). Used here to combine exactly [weekly_trend, daily_trend]."""
-    bias = None
-    for t in trends:
-        if t == "neutral":
-            continue
-        if bias is None:
-            bias = t
-        elif t != bias:
-            return "conflict"
-    return bias
-
-
-def find_fractals(df: pd.DataFrame, n: int = 2) -> pd.DataFrame:
-    highs = df["high"].values
-    lows = df["low"].values
-    swing_high = np.zeros(len(df), dtype=bool)
-    swing_low = np.zeros(len(df), dtype=bool)
-
-    for i in range(n, len(df) - n):
-        window_h = highs[i - n : i + n + 1]
-        window_l = lows[i - n : i + n + 1]
-        if highs[i] == window_h.max() and np.argmax(window_h) == n:
-            swing_high[i] = True
-        if lows[i] == window_l.min() and np.argmin(window_l) == n:
-            swing_low[i] = True
-
-    out = df.copy()
-    out["swing_high"] = swing_high
-    out["swing_low"] = swing_low
-    return out
-
-
-def nearest_confirmed_swing_level(df: pd.DataFrame, direction: str, n: int = 2):
-    """The most recently CONFIRMED swing high (direction="bullish", i.e.
-    "give me the resistance above") or swing low (direction="bearish",
-    "give me the support below") in df. A swing point needs n bars to
-    close on both sides before it's confirmed, so this always lags the
-    most extreme price seen so far by up to n bars. Returns None if no
-    such point has been confirmed yet in the fetched window."""
-    out = find_fractals(df, n=n)
-    if direction == "bullish":
-        matches = out[out["swing_high"]]
-        price_col = "high"
-    elif direction == "bearish":
-        matches = out[out["swing_low"]]
-        price_col = "low"
-    else:
+def atr(df: pd.DataFrame, period: int = 14) -> float | None:
+    """Wilder's Average True Range of the last `period` candles."""
+    if len(df) < period + 1:
         return None
-    if matches.empty:
+    high, low, close = df["high"], df["low"], df["close"]
+    prev_close = close.shift(1)
+    tr = pd.concat([high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
+    value = tr.ewm(alpha=1.0 / period, adjust=False).mean().iloc[-1]
+    return float(value) if np.isfinite(value) and value > 0 else None
+
+
+def donchian_breakout(df: pd.DataFrame, lookback: int = 20) -> str | None:
+    """"bullish" if the last closed candle is the FIRST to close above the
+    highest high of the `lookback` candles before it, "bearish" for the
+    mirror case, else None."""
+    if len(df) < lookback + 2:
         return None
-    return float(matches.iloc[-1][price_col])
-
-
-def daily_pullback_zone(
-    daily_df: pd.DataFrame,
-    direction: str,
-    pullback_ema_period: int = 20,
-    touch_tolerance_pct: float = 0.5,
-    fractal_n: int = 2,
-) -> dict:
-    """Is the most recent daily candle sitting in a tradeable pullback
-    zone for `direction` ("bullish" or "bearish")?
-
-    A pullback is considered active when BOTH:
-    1. the daily candle has come within touch_tolerance_pct of the daily
-       pullback EMA (or traded through it) -- direction="bullish" checks
-       the candle's LOW against the EMA (price dipped down to the zone);
-       direction="bearish" checks the HIGH (price rallied up to it).
-    2. price has NOT closed beyond the daily chart's own last confirmed
-       swing low (bullish) / swing high (bearish) -- if it has, this
-       looks like a potential trend reversal rather than a pullback
-       inside an intact trend, and is deliberately not traded here.
-
-    Returns {"active": bool, "ema": float, "detail": str}. `active` is
-    False (with a `detail` explaining why) if there isn't enough daily
-    history yet to compute the EMA, or either condition above fails.
-    """
-    if len(daily_df) < pullback_ema_period + 2:
-        return {"active": False, "ema": None, "detail": "not enough daily history for pullback EMA"}
-
-    ema_series = daily_df["close"].ewm(span=pullback_ema_period, adjust=False).mean()
-    ema = float(ema_series.iloc[-1])
-    last = daily_df.iloc[-1]
-    tolerance = ema * (touch_tolerance_pct / 100.0)
-
-    if direction == "bullish":
-        touched = float(last["low"]) <= ema + tolerance
-        swing_low = nearest_confirmed_swing_level(daily_df, "bearish", n=fractal_n)
-        broke_structure = swing_low is not None and float(last["close"]) < swing_low
-        detail = (
-            f"daily EMA{pullback_ema_period}={ema:.4f}, last low={float(last['low']):.4f} "
-            f"({'touched' if touched else 'not touched'}), last confirmed daily swing low="
-            f"{swing_low if swing_low is not None else 'none yet'} "
-            f"({'BROKEN -- looks like reversal, not pullback' if broke_structure else 'holding'})"
-        )
-        active = touched and not broke_structure
-        return {"active": active, "ema": ema, "detail": detail}
-
-    if direction == "bearish":
-        touched = float(last["high"]) >= ema - tolerance
-        swing_high = nearest_confirmed_swing_level(daily_df, "bullish", n=fractal_n)
-        broke_structure = swing_high is not None and float(last["close"]) > swing_high
-        detail = (
-            f"daily EMA{pullback_ema_period}={ema:.4f}, last high={float(last['high']):.4f} "
-            f"({'touched' if touched else 'not touched'}), last confirmed daily swing high="
-            f"{swing_high if swing_high is not None else 'none yet'} "
-            f"({'BROKEN -- looks like reversal, not pullback' if broke_structure else 'holding'})"
-        )
-        active = touched and not broke_structure
-        return {"active": active, "ema": ema, "detail": detail}
-
-    return {"active": False, "ema": None, "detail": f"unknown direction {direction!r}"}
-
-
-def entry_trigger(entry_df: pd.DataFrame, direction: str, trigger_ema_period: int = 9) -> bool:
-    """Has the 4h chart just triggered an entry in `direction`? Fires the
-    first candle a 4h close crosses back to the trend side of a fast EMA
-    (trigger_ema_period) after being on the wrong side the previous 4h
-    candle -- i.e. a fresh reclaim/rejection of the fast EMA, timed to
-    fire once per pullback rather than on every candle that happens to
-    already be on the right side of it."""
-    if len(entry_df) < trigger_ema_period + 2:
-        return False
-    ema = entry_df["close"].ewm(span=trigger_ema_period, adjust=False).mean()
-    last_close = float(entry_df["close"].iloc[-1])
-    prev_close = float(entry_df["close"].iloc[-2])
-    last_ema = float(ema.iloc[-1])
-    prev_ema = float(ema.iloc[-2])
-
-    if direction == "bullish":
-        return prev_close <= prev_ema and last_close > last_ema
-    if direction == "bearish":
-        return prev_close >= prev_ema and last_close < last_ema
-    return False
-
-
-def _fallback_extreme(df: pd.DataFrame, direction: str, lookback: int = 20):
-    """Used only when no confirmed fractal swing exists yet in the
-    fetched window (e.g. right after the bot starts and the entry
-    timeframe's history is short) -- the lowest low / highest high of
-    the last `lookback` candles stands in for "nearest structure" so a
-    stop can still always be placed."""
-    window = df.tail(min(lookback, len(df)))
-    if window.empty:
-        return None
-    if direction == "bearish":  # support, for a LONG stop
-        return float(window["low"].min())
-    if direction == "bullish":  # resistance, for a SHORT stop
-        return float(window["high"].max())
+    highs, lows, closes = df["high"].values, df["low"].values, df["close"].values
+    i = len(df) - 1
+    upper_now, lower_now = highs[i - lookback:i].max(), lows[i - lookback:i].min()
+    upper_prev, lower_prev = highs[i - 1 - lookback:i - 1].max(), lows[i - 1 - lookback:i - 1].min()
+    if closes[i] > upper_now and closes[i - 1] <= upper_prev:
+        return "bullish"
+    if closes[i] < lower_now and closes[i - 1] >= lower_prev:
+        return "bearish"
     return None
 
 
-def build_entry(
+def momentum_return(daily_df: pd.DataFrame, lookback_days: int = 30) -> float | None:
+    """Return over the last `lookback_days` closed daily candles."""
+    if len(daily_df) < lookback_days + 1:
+        return None
+    start = float(daily_df["close"].iloc[-1 - lookback_days])
+    end = float(daily_df["close"].iloc[-1])
+    return end / start - 1.0 if start > 0 else None
+
+
+def build_trend_entry(
     entry_df: pd.DataFrame,
     direction: str,
-    fractal_n: int = 2,
-    stop_buffer_pct: float = 0.15,
-    reward_risk_ratio: float = 2.0,
+    atr_period: int = 14,
+    stop_atr_mult: float = 2.5,
+    trail_atr_mult: float = 3.0,
 ):
-    """Builds the actual entry/stop/target once analyze-side functions
-    (daily_pullback_zone + entry_trigger) have already confirmed a trade
-    is wanted in `direction`. Entry is the 4h chart's last close; the
-    stop sits just beyond the 4h chart's nearest confirmed swing
-    low/high (or a lookback-window fallback -- see _fallback_extreme).
-    Returns None if a valid (positive) risk distance can't be computed.
-    """
+    """Entry at the last 4h close, stop STOP_ATR_MULT x ATR away, trailing
+    distance TRAIL_ATR_MULT x ATR. Returns None if ATR can't be computed."""
+    a = atr(entry_df, atr_period)
+    if a is None:
+        return None
     entry = float(entry_df["close"].iloc[-1])
-
     if direction == "bullish":
-        swing = nearest_confirmed_swing_level(entry_df, "bearish", n=fractal_n)
-        if swing is None:
-            swing = _fallback_extreme(entry_df, "bearish")
-        if swing is None:
-            return None
-        stop = swing * (1 - stop_buffer_pct / 100.0)
-        risk = entry - stop
-        if risk <= 0:
-            return None
-        target = entry + risk * reward_risk_ratio
-        return {
-            "side": "buy",
-            "position_side": "LONG",
-            "entry": entry,
-            "stop_loss": stop,
-            "take_profit": target,
-            "swing_reference": swing,
-        }
-
-    if direction == "bearish":
-        swing = nearest_confirmed_swing_level(entry_df, "bullish", n=fractal_n)
-        if swing is None:
-            swing = _fallback_extreme(entry_df, "bullish")
-        if swing is None:
-            return None
-        stop = swing * (1 + stop_buffer_pct / 100.0)
-        risk = stop - entry
-        if risk <= 0:
-            return None
-        target = entry - risk * reward_risk_ratio
-        return {
-            "side": "sell",
-            "position_side": "SHORT",
-            "entry": entry,
-            "stop_loss": stop,
-            "take_profit": target,
-            "swing_reference": swing,
-        }
-
-    return None
+        stop = entry - stop_atr_mult * a
+        side, position_side = "buy", "LONG"
+    elif direction == "bearish":
+        stop = entry + stop_atr_mult * a
+        side, position_side = "sell", "SHORT"
+    else:
+        return None
+    if stop <= 0:
+        return None
+    return {
+        "side": side,
+        "position_side": position_side,
+        "entry": entry,
+        "stop_loss": stop,
+        "take_profit": None,
+        "atr": a,
+        "trail_distance": trail_atr_mult * a,
+        "entry_candle_ts": entry_df["ts"].iloc[-1].isoformat(),
+    }

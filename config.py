@@ -55,79 +55,40 @@ class Config:
     # --- market ---
     symbols: list = field(default_factory=lambda: _env_list("SYMBOLS", DEFAULT_SYMBOLS))
 
-    # --- the three timeframes this strategy looks at, and only these
-    # three: weekly (primary trend), daily (primary trend + pullback
-    # zone), 4h (entry trigger). There is deliberately no 15m/1h "noise"
-    # level -- this bot only ever analyzes weekly, daily and 4h charts. ---
-    weekly_timeframe: str = field(default_factory=lambda: _env("WEEKLY_TIMEFRAME", "1w"))
+    # --- timeframes: daily (trend filter) and 4h (breakout entry + stops) ---
     daily_timeframe: str = field(default_factory=lambda: _env("DAILY_TIMEFRAME", "1d"))
     entry_timeframe: str = field(default_factory=lambda: _env("ENTRY_TIMEFRAME", "4h"))
-
-    weekly_candle_limit: int = field(default_factory=lambda: int(_env("WEEKLY_CANDLE_LIMIT", "150")))
     daily_candle_limit: int = field(default_factory=lambda: int(_env("DAILY_CANDLE_LIMIT", "200")))
     entry_candle_limit: int = field(default_factory=lambda: int(_env("ENTRY_CANDLE_LIMIT", "300")))
 
-    # --- trend detection (weekly + daily) ---
-    # Same EMA-slope trend read used by the order-block bot: bullish if
-    # price is above a rising EMA, bearish if below a falling EMA,
-    # neutral otherwise. Applied to both the weekly and daily closes.
+    # --- daily trend filter (strategy.detect_trend) ---
+    # Longs only when the daily close is above a rising EMA of this
+    # period, shorts only below a falling one; neutral = no trade.
     trend_ema_period: int = field(default_factory=lambda: int(_env("TREND_EMA_PERIOD", "50")))
 
-    # Weekly trend must be clearly bullish or bearish for this strategy to
-    # look for a trade at all -- a pullback needs a trend to pull back
-    # from, so a neutral weekly reading skips the symbol outright (unlike
-    # the order-block bot, where a neutral primary reading just removes
-    # the directional filter). Daily trend must not directly contradict
-    # the weekly trend (same conflict rule as combine_htf_bias); if it
-    # does, the symbol is skipped for this cycle -- there is no
-    # weekly/daily override here, unlike the order-block bot, to keep
-    # this strategy's rules simple and easy to reason about.
-    require_weekly_trend: bool = field(default_factory=lambda: _bool("REQUIRE_WEEKLY_TREND", True))
+    # --- 4h breakout entry (strategy.donchian_breakout) ---
+    # The entry fires on the first 4h close beyond the highest high /
+    # lowest low of this many previous 4h candles (20 = about 3.3 days).
+    breakout_lookback: int = field(default_factory=lambda: int(_env("BREAKOUT_LOOKBACK", "20")))
 
-    # --- pullback zone (daily) ---
-    # A daily EMA that acts as the "value zone" trend-following pullbacks
-    # are typically bought (in an uptrend) or sold (in a downtrend) into.
-    # Separate from trend_ema_period on purpose: trend_ema_period should
-    # stay slow/stable (default 50) so the trend read doesn't flicker,
-    # while pullback_ema_period can be faster (default 20) so the zone
-    # actually gets tagged periodically instead of only in deep pullbacks.
-    pullback_ema_period: int = field(default_factory=lambda: int(_env("PULLBACK_EMA_PERIOD", "20")))
-    # How close (%) price needs to get to the pullback EMA to count as
-    # "tagged" -- the daily candle's low (uptrend) or high (downtrend)
-    # must come within this percent of the EMA, or trade through it.
-    # Stops a pullback that "almost" reaches the zone from being ignored,
-    # since candles rarely close exactly on an EMA.
-    pullback_touch_tolerance_pct: float = field(
-        default_factory=lambda: float(_env("PULLBACK_TOUCH_TOLERANCE_PCT", "0.5"))
+    # --- ATR stops (strategy.build_trend_entry) ---
+    atr_period: int = field(default_factory=lambda: int(_env("ATR_PERIOD", "14")))
+    # Initial stop distance from entry, in ATRs of the 4h chart.
+    stop_atr_mult: float = field(default_factory=lambda: float(_env("STOP_ATR_MULT", "2.5")))
+    # Trailing ("chandelier") stop: this many ATRs (ATR fixed at entry)
+    # behind the best price reached since entry. There is no take-profit;
+    # the trailing stop is the exit.
+    trail_atr_mult: float = field(default_factory=lambda: float(_env("TRAIL_ATR_MULT", "3")))
+
+    # --- optional cross-sectional momentum filter (bot.py) ---
+    # When on, longs are only taken in the top MOMENTUM_TOP_FRACTION of
+    # watched symbols by MOMENTUM_LOOKBACK_DAYS return, shorts only in the
+    # bottom fraction.
+    momentum_filter: bool = field(default_factory=lambda: _bool("MOMENTUM_FILTER", False))
+    momentum_lookback_days: int = field(default_factory=lambda: int(_env("MOMENTUM_LOOKBACK_DAYS", "30")))
+    momentum_top_fraction: float = field(
+        default_factory=lambda: float(_env("MOMENTUM_TOP_FRACTION", "0.5"))
     )
-    # N-bar fractal window (see strategy.find_fractals) used to find the
-    # most recently confirmed daily swing low/high. A pullback that has
-    # already closed beyond that level is treated as a possible trend
-    # reversal, not a healthy pullback, and is skipped -- see
-    # strategy.daily_pullback_zone().
-    fractal_n: int = field(default_factory=lambda: int(_env("FRACTAL_N", "2")))
-
-    # --- entry trigger (4h) ---
-    # Fast EMA on the 4h chart. The entry trigger is a 4h close crossing
-    # back to the trend side of this EMA (from the wrong side on the
-    # previous 4h candle) while the daily pullback zone is active -- see
-    # strategy.entry_trigger(). Kept separate from pullback_ema_period
-    # since they run on different timeframes.
-    trigger_ema_period: int = field(default_factory=lambda: int(_env("TRIGGER_EMA_PERIOD", "9")))
-    # Extra room (%) beyond the nearest confirmed 4h swing low/high used
-    # for the stop-loss, so the stop sits just past structure rather than
-    # exactly on it (a exact-on-structure stop gets clipped by normal
-    # wicking noise far too often).
-    stop_buffer_pct: float = field(default_factory=lambda: float(_env("STOP_BUFFER_PCT", "0.15")))
-
-    # --- reward:risk ---
-    # Hard rule, not just a default: take-profit is always exactly this
-    # multiple of the stop-loss distance (mirrors the order-block bot).
-    # Since partial-TP + trailing (below) manage the runner after the
-    # partial exit, this fixed target is really only ever hit as a full
-    # exit if PARTIAL_TP_FRACTION is set to 0.
-    required_reward_risk_ratio: float = 2.0
-    reward_risk_ratio: float = field(default_factory=lambda: float(_env("REWARD_RISK_RATIO", "2")))
 
     # --- risk management: fixed margin per trade, leverage flexes to cap risk ---
     # Target risk, as % of equity, that position_size() solves each
@@ -154,17 +115,6 @@ class Config:
     )
     min_notional_usdt: float = field(
         default_factory=lambda: float(_env("MIN_NOTIONAL_USDT", "10"))
-    )
-
-    # --- partial take-profit + trailing stop (identical to the order-block bot) ---
-    partial_tp_r_multiple: float = field(
-        default_factory=lambda: float(_env("PARTIAL_TP_R_MULTIPLE", "1.0"))
-    )
-    partial_tp_fraction: float = field(
-        default_factory=lambda: float(_env("PARTIAL_TP_FRACTION", "0.5"))
-    )
-    trail_r_multiple: float = field(
-        default_factory=lambda: float(_env("TRAIL_R_MULTIPLE", "1.0"))
     )
 
     # --- cost modeling ---
@@ -197,12 +147,6 @@ def load_config() -> Config:
             f"({cfg.max_risk_pct_per_trade_hard_cap * 100:.0f}%); clamping."
         )
         cfg.risk_pct_per_trade = cfg.max_risk_pct_per_trade_hard_cap
-    if cfg.reward_risk_ratio != cfg.required_reward_risk_ratio:
-        print(
-            f"[config] REWARD_RISK_RATIO={cfg.reward_risk_ratio} ignored -- this strategy always "
-            f"uses a fixed {cfg.required_reward_risk_ratio}:1 reward:risk ratio."
-        )
-        cfg.reward_risk_ratio = cfg.required_reward_risk_ratio
     if not (0.0 < cfg.max_margin_utilization_pct <= 1.0):
         print(
             f"[config] MAX_MARGIN_UTILIZATION_PCT={cfg.max_margin_utilization_pct * 100:.0f}% "
@@ -212,13 +156,14 @@ def load_config() -> Config:
     if cfg.min_notional_usdt < 0:
         print(f"[config] MIN_NOTIONAL_USDT={cfg.min_notional_usdt} is negative; clamping to 0.")
         cfg.min_notional_usdt = 0.0
-    if cfg.stop_buffer_pct < 0:
-        print(f"[config] STOP_BUFFER_PCT={cfg.stop_buffer_pct} is negative; clamping to 0.")
-        cfg.stop_buffer_pct = 0.0
-    if cfg.pullback_touch_tolerance_pct < 0:
-        print(
-            f"[config] PULLBACK_TOUCH_TOLERANCE_PCT={cfg.pullback_touch_tolerance_pct} "
-            f"is negative; clamping to 0."
-        )
-        cfg.pullback_touch_tolerance_pct = 0.0
+    for name in ("stop_atr_mult", "trail_atr_mult"):
+        if getattr(cfg, name) <= 0:
+            print(f"[config] {name.upper()}={getattr(cfg, name)} must be positive; using 3.")
+            setattr(cfg, name, 3.0)
+    if cfg.breakout_lookback < 2:
+        print(f"[config] BREAKOUT_LOOKBACK={cfg.breakout_lookback} too small; using 20.")
+        cfg.breakout_lookback = 20
+    if not (0.0 < cfg.momentum_top_fraction <= 1.0):
+        print(f"[config] MOMENTUM_TOP_FRACTION={cfg.momentum_top_fraction} out of (0, 1]; using 0.5.")
+        cfg.momentum_top_fraction = 0.5
     return cfg

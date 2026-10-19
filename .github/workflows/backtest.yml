@@ -1,0 +1,101 @@
+name: Backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Days of history to test"
+        default: "365"
+      end:
+        description: "Last day, exclusive, YYYY-MM-DD UTC (empty = today)"
+        default: ""
+      start_equity:
+        description: "Starting equity, USDT"
+        default: "250"
+      slippage_pct:
+        description: "Slippage per fill, % of price"
+        default: "0.02"
+      funding_pct_8h:
+        description: "Funding charged on every position, % per 8h"
+        default: "0.01"
+
+permissions:
+  contents: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - name: Run the backtest
+        env:
+          SYMBOLS: ${{ vars.SYMBOLS }}
+          DAILY_TIMEFRAME: ${{ vars.DAILY_TIMEFRAME }}
+          ENTRY_TIMEFRAME: ${{ vars.ENTRY_TIMEFRAME }}
+          DAILY_CANDLE_LIMIT: ${{ vars.DAILY_CANDLE_LIMIT }}
+          ENTRY_CANDLE_LIMIT: ${{ vars.ENTRY_CANDLE_LIMIT }}
+          TREND_EMA_PERIOD: ${{ vars.TREND_EMA_PERIOD }}
+          BREAKOUT_LOOKBACK: ${{ vars.BREAKOUT_LOOKBACK }}
+          ATR_PERIOD: ${{ vars.ATR_PERIOD }}
+          STOP_ATR_MULT: ${{ vars.STOP_ATR_MULT }}
+          TRAIL_ATR_MULT: ${{ vars.TRAIL_ATR_MULT }}
+          MOMENTUM_FILTER: ${{ vars.MOMENTUM_FILTER }}
+          MOMENTUM_LOOKBACK_DAYS: ${{ vars.MOMENTUM_LOOKBACK_DAYS }}
+          MOMENTUM_TOP_FRACTION: ${{ vars.MOMENTUM_TOP_FRACTION }}
+          RISK_PCT_PER_TRADE: ${{ vars.RISK_PCT_PER_TRADE }}
+          MARGIN_PER_TRADE_USDT: ${{ vars.MARGIN_PER_TRADE_USDT }}
+          MAX_MARGIN_UTILIZATION_PCT: ${{ vars.MAX_MARGIN_UTILIZATION_PCT }}
+          MAX_DAILY_LOSS_PCT: ${{ vars.MAX_DAILY_LOSS_PCT }}
+          MAX_CONCURRENT_POSITIONS: ${{ vars.MAX_CONCURRENT_POSITIONS }}
+          MIN_NOTIONAL_USDT: ${{ vars.MIN_NOTIONAL_USDT }}
+          BT_DAYS: ${{ inputs.days }}
+          BT_END: ${{ inputs.end }}
+          BT_EQUITY: ${{ inputs.start_equity }}
+          BT_SLIP: ${{ inputs.slippage_pct }}
+          BT_FUND: ${{ inputs.funding_pct_8h }}
+        run: |
+          ARGS="--days ${BT_DAYS:-365} --start-equity ${BT_EQUITY:-250} --slippage-pct ${BT_SLIP:-0.02} --funding-pct-8h ${BT_FUND:-0.01} --out backtest_results"
+          if [ -n "$BT_END" ]; then ARGS="$ARGS --end $BT_END"; fi
+          python3 backtest.py $ARGS
+
+      # Also attach the report and trades to the run as annotations (max 10
+      # per step, ~4 KB each), so they can be read through the API.
+      - name: Post the report as run annotations
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import csv, os
+          def post(title, text, size=3800, limit=9):
+              chunks, cur = [], ""
+              for ln in text.splitlines():
+                  if len(cur) + len(ln) + 1 > size:
+                      chunks.append(cur); cur = ""
+                  cur += ln + "\n"
+              if cur: chunks.append(cur)
+              for i, c in enumerate(chunks[:limit], 1):
+                  c = c.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+                  print(f"::notice title={title} {i}/{len(chunks)}::{c}")
+          d = "backtest_results"
+          if os.path.exists(f"{d}/summary.md"):
+              post("Backtest summary", open(f"{d}/summary.md").read(), limit=5)
+          if os.path.exists(f"{d}/trades.csv"):
+              keep = ["symbol", "side", "entry_time_utc", "exit_time_utc", "pnl", "r_multiple", "exit_kind"]
+              rows = list(csv.DictReader(open(f"{d}/trades.csv")))
+              out = [",".join(keep)] + [",".join(str(r.get(k, ""))[:19] if "time" in k else (f"{float(r[k]):.2f}" if k in ("pnl", "r_multiple") else r.get(k, "")) for k in keep) for r in rows]
+              post("Backtest trades", "\n".join(out), limit=5)
+          PY
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-results
+          path: backtest_results/
