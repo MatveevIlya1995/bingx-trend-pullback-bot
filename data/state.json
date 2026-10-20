@@ -21,7 +21,8 @@
       "initial_qty": 0.023878,
       "initial_stop": 582.531626,
       "risk_per_unit": 37.70837400000005,
-      "best_price": 620.24
+      "best_price": 625.47,
+      "last_managed_candle_ts": "2026-10-20T16:00:00"
     }
   ],
   "dry_run_signaled": {},
