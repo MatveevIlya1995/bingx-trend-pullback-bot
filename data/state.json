@@ -61,8 +61,27 @@
       "initial_qty": 0.038454,
       "initial_stop": 730.330052,
       "risk_per_unit": 17.00994800000001,
-      "best_price": 749.77,
-      "last_managed_candle_ts": "2026-10-21T08:00:00"
+      "best_price": 750.33,
+      "last_managed_candle_ts": "2026-10-21T12:00:00"
+    },
+    {
+      "trade_id": "530c79715973",
+      "entry_time_utc": "2026-10-21T16:15:54.826829+00:00",
+      "mode": "DRY_RUN",
+      "symbol": "SUI/USDT:USDT",
+      "side": "BUY",
+      "position_side": "LONG",
+      "qty": 13.842545,
+      "entry_price": 1.0491,
+      "stop_loss": 0.98717,
+      "take_profit": null,
+      "trail_distance": 0.07431562835870982,
+      "entry_candle_ts": "2026-10-21T12:00:00",
+      "trigger": "trend following bullish: daily close vs EMA50 = bullish | 4h close 1.0491 broke the 20-candle high | ATR14=0.0247719, stop 2.5 ATR, trail 3 ATR, no take-profit | momentum rank 2/16",
+      "initial_qty": 13.842545,
+      "initial_stop": 0.98717,
+      "risk_per_unit": 0.06192999999999993,
+      "best_price": 1.0491
     }
   ],
   "dry_run_signaled": {},
