@@ -1,6 +1,6 @@
 {
-  "date": "2026-10-20",
-  "day_start_equity": 180.0791,
+  "date": "2026-10-21",
+  "day_start_equity": 130.8187,
   "realized_pnl_today": 0.0,
   "open_trades": [],
   "open_dry_run_trades": [
@@ -22,7 +22,26 @@
       "initial_stop": 582.531626,
       "risk_per_unit": 37.70837400000005,
       "best_price": 625.47,
-      "last_managed_candle_ts": "2026-10-20T16:00:00"
+      "last_managed_candle_ts": "2026-10-20T20:00:00"
+    },
+    {
+      "trade_id": "21f3448ae2ef",
+      "entry_time_utc": "2026-10-21T00:00:54.280807+00:00",
+      "mode": "DRY_RUN",
+      "symbol": "LTC/USDT:USDT",
+      "side": "BUY",
+      "position_side": "LONG",
+      "qty": 0.224847,
+      "entry_price": 61.54,
+      "stop_loss": 58.63094,
+      "take_profit": null,
+      "trail_distance": 3.4908717310984896,
+      "entry_candle_ts": "2026-10-20T20:00:00",
+      "trigger": "trend following bullish: daily close vs EMA50 = bullish | 4h close 61.54 broke the 20-candle high | ATR14=1.16362, stop 2.5 ATR, trail 3 ATR, no take-profit | momentum rank 5/19",
+      "initial_qty": 0.224847,
+      "initial_stop": 58.63094,
+      "risk_per_unit": 2.9090599999999966,
+      "best_price": 61.54
     }
   ],
   "dry_run_signaled": {},
