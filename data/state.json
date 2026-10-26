@@ -1,6 +1,6 @@
 {
-  "date": "2026-10-25",
-  "day_start_equity": 171.4529,
+  "date": "2026-10-26",
+  "day_start_equity": 135.0397,
   "realized_pnl_today": 0.0,
   "open_trades": [],
   "open_dry_run_trades": [
@@ -22,7 +22,7 @@
       "initial_stop": 0.225512,
       "risk_per_unit": 0.011712,
       "best_price": 0.2003,
-      "last_managed_candle_ts": "2026-10-25T16:00:00"
+      "last_managed_candle_ts": "2026-10-25T20:00:00"
     },
     {
       "trade_id": "b7bab3a94c09",
@@ -42,7 +42,7 @@
       "initial_stop": 0.082418,
       "risk_per_unit": 0.004428000000000001,
       "best_price": 0.07487,
-      "last_managed_candle_ts": "2026-10-25T16:00:00"
+      "last_managed_candle_ts": "2026-10-25T20:00:00"
     },
     {
       "trade_id": "823c99fca9d1",
@@ -62,7 +62,7 @@
       "initial_stop": 0.180673,
       "risk_per_unit": 0.007493,
       "best_price": 0.16618,
-      "last_managed_candle_ts": "2026-10-25T16:00:00"
+      "last_managed_candle_ts": "2026-10-25T20:00:00"
     },
     {
       "trade_id": "08ca50f1c7d7",
@@ -82,7 +82,7 @@
       "initial_stop": 1.346229,
       "risk_per_unit": 0.051728999999999914,
       "best_price": 1.2539,
-      "last_managed_candle_ts": "2026-10-25T16:00:00"
+      "last_managed_candle_ts": "2026-10-25T20:00:00"
     }
   ],
   "dry_run_signaled": {},
