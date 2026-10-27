@@ -42,7 +42,7 @@
       "initial_stop": 0.082418,
       "risk_per_unit": 0.004428000000000001,
       "best_price": 0.07487,
-      "last_managed_candle_ts": "2026-10-27T04:00:00"
+      "last_managed_candle_ts": "2026-10-27T08:00:00"
     },
     {
       "trade_id": "823c99fca9d1",
@@ -62,7 +62,7 @@
       "initial_stop": 0.180673,
       "risk_per_unit": 0.007493,
       "best_price": 0.16618,
-      "last_managed_candle_ts": "2026-10-27T04:00:00"
+      "last_managed_candle_ts": "2026-10-27T08:00:00"
     },
     {
       "trade_id": "08ca50f1c7d7",
@@ -82,7 +82,7 @@
       "initial_stop": 1.346229,
       "risk_per_unit": 0.051728999999999914,
       "best_price": 1.2539,
-      "last_managed_candle_ts": "2026-10-27T04:00:00"
+      "last_managed_candle_ts": "2026-10-27T08:00:00"
     }
   ],
   "dry_run_signaled": {},
