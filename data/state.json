@@ -22,7 +22,7 @@
       "initial_stop": 0.225512,
       "risk_per_unit": 0.011712,
       "best_price": 0.2003,
-      "last_managed_candle_ts": "2026-10-27T08:00:00"
+      "last_managed_candle_ts": "2026-10-27T12:00:00"
     },
     {
       "trade_id": "b7bab3a94c09",
@@ -42,7 +42,7 @@
       "initial_stop": 0.082418,
       "risk_per_unit": 0.004428000000000001,
       "best_price": 0.07487,
-      "last_managed_candle_ts": "2026-10-27T08:00:00"
+      "last_managed_candle_ts": "2026-10-27T12:00:00"
     },
     {
       "trade_id": "823c99fca9d1",
@@ -62,27 +62,26 @@
       "initial_stop": 0.180673,
       "risk_per_unit": 0.007493,
       "best_price": 0.16618,
-      "last_managed_candle_ts": "2026-10-27T08:00:00"
+      "last_managed_candle_ts": "2026-10-27T12:00:00"
     },
     {
-      "trade_id": "08ca50f1c7d7",
-      "entry_time_utc": "2026-10-24T00:00:49.633269+00:00",
+      "trade_id": "d2add740afc7",
+      "entry_time_utc": "2026-10-27T16:02:34.268746+00:00",
       "mode": "DRY_RUN",
-      "symbol": "XRP/USDT:USDT",
-      "side": "SELL",
-      "position_side": "SHORT",
-      "qty": 16.572381,
-      "entry_price": 1.2945,
-      "stop_loss": 1.3159742061935313,
+      "symbol": "BNB/USDT:USDT",
+      "side": "BUY",
+      "position_side": "LONG",
+      "qty": 0.022609,
+      "entry_price": 750.12,
+      "stop_loss": 729.601055,
       "take_profit": null,
-      "trail_distance": 0.06207420619353139,
-      "entry_candle_ts": "2026-10-23T20:00:00",
-      "trigger": "trend following bearish: daily close vs EMA50 = bearish | 4h close 1.2945 broke the 20-candle low | ATR14=0.0206914, stop 2.5 ATR, trail 3 ATR, no take-profit | momentum rank 11/16",
-      "initial_qty": 16.572381,
-      "initial_stop": 1.346229,
-      "risk_per_unit": 0.051728999999999914,
-      "best_price": 1.2539,
-      "last_managed_candle_ts": "2026-10-27T08:00:00"
+      "trail_distance": 24.622733982328427,
+      "entry_candle_ts": "2026-10-27T12:00:00",
+      "trigger": "trend following bullish: daily close vs EMA50 = bullish | 4h close 750.12 broke the 20-candle high | ATR14=8.20758, stop 2.5 ATR, trail 3 ATR, no take-profit | momentum rank 3/18",
+      "initial_qty": 0.022609,
+      "initial_stop": 729.601055,
+      "risk_per_unit": 20.51894500000003,
+      "best_price": 750.12
     }
   ],
   "dry_run_signaled": {},
