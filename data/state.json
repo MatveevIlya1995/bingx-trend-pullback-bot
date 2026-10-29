@@ -82,7 +82,7 @@
       "initial_stop": 729.601055,
       "risk_per_unit": 20.51894500000003,
       "best_price": 762.29,
-      "last_managed_candle_ts": "2026-10-29T08:00:00"
+      "last_managed_candle_ts": "2026-10-29T12:00:00"
     }
   ],
   "dry_run_signaled": {},
