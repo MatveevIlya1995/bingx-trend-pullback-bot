@@ -22,7 +22,7 @@
       "initial_stop": 0.225512,
       "risk_per_unit": 0.011712,
       "best_price": 0.1823,
-      "last_managed_candle_ts": "2026-10-30T04:00:00"
+      "last_managed_candle_ts": "2026-10-30T08:00:00"
     },
     {
       "trade_id": "ed4f4ea8def6",
@@ -42,7 +42,7 @@
       "initial_stop": 0.079335,
       "risk_per_unit": 0.004125000000000004,
       "best_price": 0.07233,
-      "last_managed_candle_ts": "2026-10-30T04:00:00"
+      "last_managed_candle_ts": "2026-10-30T08:00:00"
     }
   ],
   "dry_run_signaled": {},
