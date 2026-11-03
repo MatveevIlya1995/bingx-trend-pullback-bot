@@ -41,7 +41,8 @@
       "initial_qty": 224.085645,
       "initial_stop": 0.072355,
       "risk_per_unit": 0.003015000000000004,
-      "best_price": 0.06934
+      "best_price": 0.06929,
+      "last_managed_candle_ts": "2026-11-02T20:00:00"
     },
     {
       "trade_id": "63e1b8e7365a",
