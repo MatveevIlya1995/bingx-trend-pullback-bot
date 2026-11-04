@@ -13,7 +13,7 @@
       "position_side": "SHORT",
       "qty": 163.787147,
       "entry_price": 0.07521,
-      "stop_loss": 0.07728054595378477,
+      "stop_loss": 0.07720054595378475,
       "take_profit": null,
       "trail_distance": 0.004950545953784756,
       "entry_candle_ts": "2026-10-29T20:00:00",
@@ -21,8 +21,8 @@
       "initial_qty": 163.787147,
       "initial_stop": 0.079335,
       "risk_per_unit": 0.004125000000000004,
-      "best_price": 0.07233,
-      "last_managed_candle_ts": "2026-11-03T20:00:00"
+      "best_price": 0.07225,
+      "last_managed_candle_ts": "2026-11-04T00:00:00"
     },
     {
       "trade_id": "db92056d0ba7",
@@ -53,7 +53,7 @@
       "position_side": "SHORT",
       "qty": 15.601415,
       "entry_price": 0.8715,
-      "stop_loss": 0.9111719412547821,
+      "stop_loss": 0.9094719412547821,
       "take_profit": null,
       "trail_distance": 0.05197194125478209,
       "entry_candle_ts": "2026-11-02T16:00:00",
@@ -61,8 +61,8 @@
       "initial_qty": 15.601415,
       "initial_stop": 0.91481,
       "risk_per_unit": 0.04330999999999996,
-      "best_price": 0.8592,
-      "last_managed_candle_ts": "2026-11-03T20:00:00"
+      "best_price": 0.8575,
+      "last_managed_candle_ts": "2026-11-04T00:00:00"
     },
     {
       "trade_id": "c8854dc55d02",
@@ -73,7 +73,7 @@
       "position_side": "SHORT",
       "qty": 81.123905,
       "entry_price": 0.1879,
-      "stop_loss": 0.19539502918871013,
+      "stop_loss": 0.1927950291887101,
       "take_profit": null,
       "trail_distance": 0.009995029188710123,
       "entry_candle_ts": "2026-11-02T16:00:00",
@@ -81,8 +81,8 @@
       "initial_qty": 81.123905,
       "initial_stop": 0.196229,
       "risk_per_unit": 0.008328999999999975,
-      "best_price": 0.1854,
-      "last_managed_candle_ts": "2026-11-03T20:00:00"
+      "best_price": 0.1828,
+      "last_managed_candle_ts": "2026-11-04T00:00:00"
     }
   ],
   "dry_run_signaled": {},
