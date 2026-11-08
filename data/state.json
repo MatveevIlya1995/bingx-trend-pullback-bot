@@ -13,7 +13,7 @@
       "position_side": "SHORT",
       "qty": 155.439969,
       "entry_price": 0.06752,
-      "stop_loss": 0.07157639193539564,
+      "stop_loss": 0.07146639193539564,
       "take_profit": null,
       "trail_distance": 0.005216391935395639,
       "entry_candle_ts": "2026-11-05T12:00:00",
@@ -21,8 +21,8 @@
       "initial_qty": 155.439969,
       "initial_stop": 0.071867,
       "risk_per_unit": 0.004347000000000004,
-      "best_price": 0.06636,
-      "last_managed_candle_ts": "2026-11-08T04:00:00"
+      "best_price": 0.06625,
+      "last_managed_candle_ts": "2026-11-08T08:00:00"
     },
     {
       "trade_id": "e7167ee7f479",
