@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-07",
+  "date": "2026-11-08",
   "day_start_equity": 135.1393,
   "realized_pnl_today": 0.0,
   "open_trades": [],
@@ -22,7 +22,7 @@
       "initial_stop": 0.071867,
       "risk_per_unit": 0.004347000000000004,
       "best_price": 0.06653,
-      "last_managed_candle_ts": "2026-11-07T16:00:00"
+      "last_managed_candle_ts": "2026-11-07T20:00:00"
     },
     {
       "trade_id": "e7167ee7f479",
@@ -33,7 +33,7 @@
       "position_side": "SHORT",
       "qty": 65.366596,
       "entry_price": 0.15408,
-      "stop_loss": 0.16274443670082042,
+      "stop_loss": 0.16218443670082042,
       "take_profit": null,
       "trail_distance": 0.012404436700820427,
       "entry_candle_ts": "2026-11-05T12:00:00",
@@ -41,8 +41,8 @@
       "initial_qty": 65.366596,
       "initial_stop": 0.164417,
       "risk_per_unit": 0.010337000000000013,
-      "best_price": 0.15034,
-      "last_managed_candle_ts": "2026-11-07T16:00:00"
+      "best_price": 0.14978,
+      "last_managed_candle_ts": "2026-11-07T20:00:00"
     },
     {
       "trade_id": "040f6ecd9a04",
@@ -73,7 +73,7 @@
       "position_side": "SHORT",
       "qty": 10.233442,
       "entry_price": 1.2066,
-      "stop_loss": 1.2305339255136554,
+      "stop_loss": 1.2292339255136553,
       "take_profit": null,
       "trail_distance": 0.07923392551365531,
       "entry_candle_ts": "2026-11-05T20:00:00",
@@ -81,8 +81,8 @@
       "initial_qty": 10.233442,
       "initial_stop": 1.272628,
       "risk_per_unit": 0.0660280000000002,
-      "best_price": 1.1513,
-      "last_managed_candle_ts": "2026-11-07T16:00:00"
+      "best_price": 1.15,
+      "last_managed_candle_ts": "2026-11-07T20:00:00"
     }
   ],
   "dry_run_signaled": {},
