@@ -1,36 +1,42 @@
 # BingX Trend-Following Futures Bot
 
-A rule-based bot for BingX USDT-M perpetual futures that follows trends on the **4h** chart, filtered by the **daily** trend. It enters on breakouts, exits only on an ATR trailing stop (no fixed take-profit), and risks a fixed slice of equity per trade. A daily-loss circuit breaker halts new entries after a bad day.
+A rule-based bot for BingX USDT-M perpetual futures that follows trends on the **daily** chart: it buys a close above the 55-day high, shorts a close below the 55-day low, exits only on a trailing stop (no fixed take-profit), and risks a fixed slice of equity per trade (2%). A daily-loss circuit breaker halts new entries after a bad day.
 
-The repo name is historical: until October 2026 this bot traded a weekly-trend / daily-pullback / 4h-trigger strategy. It was replaced by trend following because published research finds crypto trends persist on multi-day horizons, and trend following has the strongest evidence of the common bot strategies. Sibling of [bingx-order-block-bot](https://github.com/MatveevIlya1995/bingx-order-block-bot).
+The repo name is historical: until October 2026 this bot traded a weekly-trend / daily-pullback / 4h-trigger strategy, then a 4h Donchian breakout with a daily EMA filter. Since 2026-11-09 it trades the daily rule below, the one that held up in testing. Sibling of [bingx-order-block-bot](https://github.com/MatveevIlya1995/bingx-order-block-bot), whose order-block strategy was retired the same day after backtests showed it losing on every timeframe.
 
-## How a trade gets taken
+## How a trade gets taken (code defaults in `config.py` = the tested rule)
 
-1. **Daily trend filter** -- last daily close above a rising EMA(`TREND_EMA_PERIOD`, 50) = bullish, below a falling one = bearish, otherwise no trade (`strategy.detect_trend`). Longs only in a bullish trend, shorts only in a bearish one.
-2. **4h breakout** -- the last closed 4h candle is the FIRST to close above the highest high (long) or below the lowest low (short) of the previous `BREAKOUT_LOOKBACK` (20) 4h candles (`strategy.donchian_breakout`).
-3. **Optional momentum filter** (`MOMENTUM_FILTER`, off by default) -- longs only in the strongest `MOMENTUM_TOP_FRACTION` of watched coins by `MOMENTUM_LOOKBACK_DAYS` return, shorts only in the weakest. When more signals fire than free slots, the strongest momentum goes first.
-4. **Initial stop** -- `STOP_ATR_MULT` (2.5) x ATR(`ATR_PERIOD`, 14) of the 4h chart from the entry (`strategy.build_trend_entry`).
-5. **Trailing stop, no take-profit** -- the stop trails `TRAIL_ATR_MULT` (3) x ATR behind the best price since entry, moving only in the trade's favour. The trade ends when it is hit (`risk_manager.py`).
-6. **Volatility sizing** -- position size = (`RISK_PCT_PER_TRADE` of equity) / stop distance, so every trade risks the same amount whatever the coin's volatility. `MARGIN_PER_TRADE_USDT` is the most margin one trade may use; leverage is the lowest that fits (10x cap), and risk is hard-capped at 3% (`risk_manager.position_size`).
+1. **Daily breakout** -- the last closed daily candle closes at or above the highest high (long) or at or below the lowest low (short) of the previous `BREAKOUT_LOOKBACK` (55) daily candles (`strategy.donchian_breakout`). A flat coin still beyond the channel is entered again after a stop-out (`BREAKOUT_EDGE_ONLY=false`).
+2. **No trend or momentum filter by default** -- `TREND_FILTER` (daily EMA) and `MOMENTUM_FILTER` exist but are off; the tested rule has neither, and the EMA-filtered versions did slightly worse.
+3. **Initial stop** -- `STOP_ATR_MULT` (2) x ATR(`ATR_PERIOD`, 20) from the entry (`strategy.build_trend_entry`).
+4. **Trailing stop, no take-profit** -- after every closed daily candle the stop moves to the tighter of the `EXIT_LOOKBACK` (20)-day channel (lowest low for a long, highest high for a short) and the close minus/plus `TRAIL_ATR_MULT` (2) x the current ATR, never backwards (`strategy.trail_levels`, `risk_manager._ratchet`).
+5. **Volatility sizing** -- position size = (`RISK_PCT_PER_TRADE` of equity) / stop distance, so every trade risks the same amount whatever the coin's volatility. Margin per trade is at most an equal share of `MAX_MARGIN_UTILIZATION_PCT` of equity across the `MAX_CONCURRENT_POSITIONS` slots; leverage is the lowest that fits (10x cap); all positions together stay under `MAX_TOTAL_NOTIONAL_X` (3) x equity; risk is hard-capped at 3% (`risk_manager.position_size`).
 
-Trend following makes money on a few large winners and loses small amounts on many false breakouts; a 30-45% win rate is normal.
+Trend following makes money on a few large winners and loses small amounts on many false breakouts; a 35-45% win rate is normal, and losing months (2025 was a losing year in the test) are part of it.
 
-## Backtest
+## Backtest results and how to rerun them
 
-Run the **Backtest** workflow (Actions tab -> Backtest -> Run workflow), or locally: `python3 backtest.py --days 365`. It replays the strategy on real BingX 4h and daily candles with the repo's settings, fees, slippage and funding, and reports the result for both halves of the period plus sensitivity tables. The report appears on the run's summary page. `python3 backtest.py --synthetic 1` runs it on random candles to test the code without network access.
+Run the **Strategy research** workflow (Actions tab -> Strategy research -> Run workflow), or `python3 research.py --since 2021-01-01`. It tests daily and 4h Donchian / EMA-cross rules on 15 large-cap BingX perpetuals as one account (1% risk, max 5 positions, 3x notional cap, 0.05% taker fee + 0.03% slippage per side, 0.03%/day funding on longs), with 2022-01 to 2025-04 as in-sample and 2025-04 to 2026-11 as out-of-sample.
+
+Result on 2026-11-09 for this rule (55/20, both directions), at 1% risk per trade: in-sample profit factor 1.38, out-of-sample 1.20; about 11% a year with a 23% worst drawdown over the whole period. At 2% risk expect roughly twice both. Every daily breakout length from 20 to 55 days was profitable in both periods; 100 days was not out-of-sample, and the 4h versions had 40-60% drawdowns.
+
+Read before trusting it: the 15 coins are today's survivors (coins that collapsed since 2022 are not in the test), so the numbers are optimistic; and no backtest predicts the next year. `backtest.py` still replays the OLD 4h rule and is kept only for reference.
 
 ## Files
 
 | File | Purpose |
 |---|---|
 | `bot.py` | Entry point -- one cycle: manage open trades, then scan for new breakouts |
-| `strategy.py` | Daily trend filter, 4h Donchian breakout, ATR, momentum, entry/stop construction |
-| `risk_manager.py` | Position sizing, daily-loss circuit breaker, ATR trailing stops, DRY_RUN P/L simulation, trade journal |
+| `strategy.py` | Daily Donchian breakout, trailing-stop levels, ATR, optional trend/momentum filters, entry/stop construction |
+| `risk_manager.py` | Position sizing, daily-loss circuit breaker, trailing stops, DRY_RUN P/L simulation, trade journal |
 | `exchange_client.py` | ccxt BingX wrapper: market entry with reduce-only stop, stop replacement, exit-fill lookup |
-| `backtest.py` | Backtest on real BingX candles with the bot's own sizing |
+| `research.py` | Backtest of the daily rule (and alternatives) on years of BingX history |
+| `backtest.py` | OUTDATED: backtest of the old 4h rule |
+| `tests/` | `python3 -m pytest tests` |
 | `config.py` | Settings from environment variables, plus hard caps (3% risk, 10x leverage) |
 | `.github/workflows/bot.yml` | Runs one cycle every 15 minutes and commits state/journal back to the repo |
-| `.github/workflows/backtest.yml` | Manual backtest run |
+| `.github/workflows/research.yml` | Manual research/backtest run |
+| `.github/workflows/backtest.yml` | Manual run of the old 4h backtest |
 | `data/state.json` / `data/trades.csv` | Open trades and the trade journal (ENTRY / EXIT rows) |
 
 **The live order path (entry, stop replacement) has not been verified against a real BingX account.** Keep `DRY_RUN=true` until the backtest and several weeks of paper trading agree.
@@ -57,36 +63,40 @@ Create a BingX API key (BingX -> Account -> API Management):
 Paste the key/secret into `.env`. Never commit `.env` or paste your secret key into a chat.
 
 Validate before trading real money, in this order:
-1. Run `python3 bot.py` a few times with `DRY_RUN=true` (the default) and confirm it reads your balance, fetches daily and 4h candles, and logs sensible trend/breakout output without error.
+1. Run `python3 bot.py` a few times with `DRY_RUN=true` (the default) and confirm it reads your balance, fetches daily candles, and logs sensible breakout output without error.
 2. If you can, test against BingX's demo trading (VST) environment first, or at minimum keep `RISK_PCT_PER_TRADE` very small for the first week live.
 3. Open a Python REPL and place one manual small test order through `ExchangeClient` to confirm `positionSide` and stop-order params match your account's position mode (one-way vs. hedge), and confirm `fetch_trade_exit()`'s field-name assumptions against a real closed trade. Also watch the first trailing-stop move closely: `replace_stop_order()` must cancel the old stop and place the new one.
 4. Only then set `DRY_RUN=false`.
 
-Schedule it. The entry timeframe is 4h, so a schedule anywhere from every 5-30 minutes is enough to catch a fresh candle close promptly -- the bot itself is idempotent per cycle (it checks existing positions before opening a new one):
+Schedule it. The strategy works on daily candles (they close at 00:00 UTC), so anything from every 15 minutes to hourly is enough -- the bot itself is idempotent per cycle (it checks existing positions before opening a new one):
 
 ```
 */15 * * * * /path/to/bingx-trend-pullback-bot/run.sh >> /path/to/bingx-trend-pullback-bot/data/cron.log 2>&1
 ```
 
-Or use the included `.github/workflows/bot.yml` (runs every 15 minutes via GitHub Actions; needs `BINGX_API_KEY`/`BINGX_API_SECRET` as repo Secrets and the config knobs below as repo Variables).
+Or use the included `.github/workflows/bot.yml` (runs every 15 minutes via GitHub Actions; needs `BINGX_API_KEY`/`BINGX_API_SECRET` as repo Secrets. The workflow passes only the account/risk knobs from repo Variables; the strategy settings are the code defaults, and `RISK_PCT_PER_TRADE` is set to 2 in the workflow file itself).
 
 ## Configuration (.env)
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `SYMBOLS` | 15-symbol basket | Comma-separated ccxt symbols of the USDT-M perpetuals to watch |
-| `DAILY_TIMEFRAME` / `ENTRY_TIMEFRAME` | `1d` / `4h` | Trend-filter and entry timeframes |
-| `DAILY_CANDLE_LIMIT` / `ENTRY_CANDLE_LIMIT` | `200` / `300` | Candles fetched per cycle |
-| `TREND_EMA_PERIOD` | `50` | Daily EMA for the trend filter |
-| `BREAKOUT_LOOKBACK` | `20` | 4h candles in the breakout channel |
-| `ATR_PERIOD` | `14` | ATR length on the 4h chart |
-| `STOP_ATR_MULT` | `2.5` | Initial stop distance in ATRs |
-| `TRAIL_ATR_MULT` | `3` | Trailing-stop distance in ATRs behind the best price |
+| `ENTRY_TIMEFRAME` | `1d` | Entry / stop timeframe |
+| `BREAKOUT_LOOKBACK` | `55` | Candles in the breakout channel |
+| `BREAKOUT_EDGE_ONLY` | `false` | `true` = only the first close outside the channel |
+| `EXIT_LOOKBACK` | `20` | Candles in the trailing exit channel (0 = old chandelier trail) |
+| `ATR_PERIOD` | `20` | ATR length |
+| `STOP_ATR_MULT` | `2` | Initial stop distance in ATRs |
+| `TRAIL_ATR_MULT` | `2` | Trailing stop: close minus this many current ATRs (or the exit channel, whichever is tighter) |
+| `TREND_FILTER` | `false` | Only trade in the direction of the daily EMA trend |
+| `DAILY_TIMEFRAME` / `DAILY_CANDLE_LIMIT` / `TREND_EMA_PERIOD` | `1d` / `200` / `50` | Trend filter settings |
+| `ENTRY_CANDLE_LIMIT` | `300` | Candles fetched per cycle |
 | `MOMENTUM_FILTER` | `false` | Only long the strongest / short the weakest coins |
 | `MOMENTUM_LOOKBACK_DAYS` | `30` | Momentum measured over this many days |
 | `MOMENTUM_TOP_FRACTION` | `0.5` | Share of coins counted as strongest / weakest |
 | `RISK_PCT_PER_TRADE` | `3` | % of equity lost at the initial stop; hard-capped at 3% |
-| `MARGIN_PER_TRADE_USDT` | `50` | Most margin one trade may use; leverage is the lowest that fits (10x cap) |
+| `MARGIN_PER_TRADE_USDT` | `50` | Most margin one trade may use (also capped at an equal share of the utilization cap per slot); leverage is the lowest that fits (10x cap) |
+| `MAX_TOTAL_NOTIONAL_X` | `3` | All open positions together stay under this many times equity |
 | `MAX_MARGIN_UTILIZATION_PCT` | `50` | Cap on margin used by all open positions together |
 | `MAX_DAILY_LOSS_PCT` | `3` | Daily loss that halts new entries until the next UTC day |
 | `MAX_CONCURRENT_POSITIONS` | `1` | Maximum open positions (paper trades count) |

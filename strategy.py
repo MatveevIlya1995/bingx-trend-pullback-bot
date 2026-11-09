@@ -1,45 +1,40 @@
 """
-Trend-following strategy: 4h Donchian breakout, filtered by the daily
-trend, with ATR-based stops that trail the trend and no fixed target.
+Trend-following strategy: DAILY Donchian breakout with a channel + ATR
+trailing stop and no fixed target.
 
 Why this design
 ---------------
-Published research on crypto finds that trends persist on multi-day
-horizons (weekly momentum, multi-day moving-average and breakout rules),
-while intraday signals rarely beat fees. Trend following makes money from
-a few large winners and loses small amounts on many false breakouts, so
-the two things that matter most are (1) never capping a winner with a
-fixed take-profit and (2) keeping each loss to a fixed slice of equity.
+Tested on 15 large-cap BingX perpetuals since 2022 (research.py in the
+order-block bot repo: one account, fees, slippage, funding on longs):
+every daily Donchian breakout from 20 to 55 days made money both in
+2022 - Apr 2025 and in the held-out stretch after it; the 4h version
+of the same rule had 40-60% drawdowns, and intraday smart-money entries
+lost on every timeframe. Trend following makes money from a few large
+winners and loses small amounts on many false breakouts, so it needs
+(1) no take-profit capping winners and (2) a fixed slice of equity
+risked per trade.
 
-How a trade gets taken
-----------------------
-1. Daily trend filter -- detect_trend() on CLOSED daily candles: last
-   close above a rising EMA(TREND_EMA_PERIOD, default 50) = bullish,
-   below a falling one = bearish, anything else = neutral (no trade).
-   Longs only in a bullish daily trend, shorts only in a bearish one.
-
-2. 4h breakout trigger -- donchian_breakout(): the last CLOSED 4h candle
-   closes above the highest high of the previous BREAKOUT_LOOKBACK 4h
-   candles (default 20, about 3.3 days) for a long, or below the lowest
-   low for a short. It is edge-triggered: it fires only on the FIRST
-   candle that closes outside the channel, so the bot doesn't chase a
-   move that broke out days ago.
-
-3. Optional momentum filter (MOMENTUM_FILTER, see bot.py): rank every
-   watched symbol by its MOMENTUM_LOOKBACK_DAYS return and only take
-   longs in the strongest MOMENTUM_TOP_FRACTION of coins and shorts in the
-   weakest -- the cross-sectional momentum factor.
+How a trade gets taken (defaults = the tested rule)
+-------------------------------------------------
+1. Breakout -- donchian_breakout(): the last CLOSED daily candle closes
+   above the highest high of the previous BREAKOUT_LOOKBACK (55) daily
+   candles for a long, or below the lowest low for a short. With
+   BREAKOUT_EDGE_ONLY=false (default, as tested) a flat symbol whose
+   close is still beyond the channel is entered again after a stop-out;
+   true = only the first close outside the channel.
+2. Optional daily EMA trend filter (TREND_FILTER, off by default --
+   the tested rule has none; the EMA-filtered versions did slightly worse).
+3. Optional momentum filter (MOMENTUM_FILTER, off by default, see bot.py).
 
 Stops and exits
 ---------------
-- Initial stop: STOP_ATR_MULT x ATR(ATR_PERIOD) beyond the entry
-  (default 2.5 x ATR14 on 4h). Wide enough to survive normal noise.
-- Trailing stop: from the first candle, the stop trails
-  TRAIL_ATR_MULT x ATR (default 3, the ATR measured at entry) behind the
-  best price reached -- a "chandelier" stop. It only ever moves in the
-  trade's favour; the initial stop stays until the trail passes it.
-- No take-profit order: the trade ends only when the trailing stop is hit.
-- Size: risk_manager.position_size() keeps a stop-out at or below
+- Initial stop: STOP_ATR_MULT (2) x ATR(ATR_PERIOD=20) beyond the entry.
+- Trailing stop, moved after every closed daily candle and never
+  backwards: the tighter of the EXIT_LOOKBACK (20)-day channel (lowest
+  low for a long, highest high for a short, of the 20 candles before the
+  latest) and the latest close minus TRAIL_ATR_MULT (2) x the current ATR.
+- No take-profit order: the trade ends only when the stop is hit.
+- Size: risk_manager.position_size() keeps a stop-out at
   RISK_PCT_PER_TRADE of equity.
 """
 import numpy as np
@@ -104,21 +99,40 @@ def atr(df: pd.DataFrame, period: int = 14) -> float | None:
     return float(value) if np.isfinite(value) and value > 0 else None
 
 
-def donchian_breakout(df: pd.DataFrame, lookback: int = 20) -> str | None:
-    """"bullish" if the last closed candle is the FIRST to close above the
-    highest high of the `lookback` candles before it, "bearish" for the
-    mirror case, else None."""
+def donchian_breakout(df: pd.DataFrame, lookback: int = 55, edge_only: bool = False) -> str | None:
+    """"bullish" if the last closed candle closes at or above the highest
+    high of the `lookback` candles before it, "bearish" at or below the
+    lowest low, else None. edge_only=True: only the FIRST close beyond the
+    channel counts (the previous close was still inside)."""
     if len(df) < lookback + 2:
         return None
     highs, lows, closes = df["high"].values, df["low"].values, df["close"].values
     i = len(df) - 1
     upper_now, lower_now = highs[i - lookback:i].max(), lows[i - lookback:i].min()
     upper_prev, lower_prev = highs[i - 1 - lookback:i - 1].max(), lows[i - 1 - lookback:i - 1].min()
-    if closes[i] > upper_now and closes[i - 1] <= upper_prev:
+    if closes[i] >= upper_now and not (edge_only and closes[i - 1] >= upper_prev):
         return "bullish"
-    if closes[i] < lower_now and closes[i - 1] >= lower_prev:
+    if closes[i] <= lower_now and not (edge_only and closes[i - 1] <= lower_prev):
         return "bearish"
     return None
+
+
+def trail_levels(df: pd.DataFrame, exit_lookback: int = 20, atr_period: int = 20,
+                 trail_atr_mult: float = 2.0):
+    """Where the trailing stop may be moved to after the last closed
+    candle: (long_level, short_level). Long: the higher of the lowest low
+    of the `exit_lookback` candles BEFORE the last one and last close -
+    trail_atr_mult x ATR. Short: the mirror (the lower of the two).
+    Returns (None, None) when there isn't enough history."""
+    if len(df) < max(exit_lookback, atr_period) + 2:
+        return None, None
+    a = atr(df, atr_period)
+    if a is None:
+        return None, None
+    close = float(df["close"].iloc[-1])
+    lo = float(df["low"].iloc[-1 - exit_lookback:-1].min())
+    hi = float(df["high"].iloc[-1 - exit_lookback:-1].max())
+    return max(lo, close - trail_atr_mult * a), min(hi, close + trail_atr_mult * a)
 
 
 def momentum_return(daily_df: pd.DataFrame, lookback_days: int = 30) -> float | None:
@@ -133,12 +147,14 @@ def momentum_return(daily_df: pd.DataFrame, lookback_days: int = 30) -> float | 
 def build_trend_entry(
     entry_df: pd.DataFrame,
     direction: str,
-    atr_period: int = 14,
-    stop_atr_mult: float = 2.5,
-    trail_atr_mult: float = 3.0,
+    atr_period: int = 20,
+    stop_atr_mult: float = 2.0,
+    trail_atr_mult: float = 2.0,
 ):
-    """Entry at the last 4h close, stop STOP_ATR_MULT x ATR away, trailing
-    distance TRAIL_ATR_MULT x ATR. Returns None if ATR can't be computed."""
+    """Entry at the last closed candle's close, stop STOP_ATR_MULT x ATR
+    away. trail_distance (TRAIL_ATR_MULT x ATR at entry) is kept for the
+    old chandelier trail of trades opened before the channel exit.
+    Returns None if ATR can't be computed."""
     a = atr(entry_df, atr_period)
     if a is None:
         return None

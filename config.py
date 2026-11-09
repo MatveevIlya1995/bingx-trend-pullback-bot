@@ -55,30 +55,37 @@ class Config:
     # --- market ---
     symbols: list = field(default_factory=lambda: _env_list("SYMBOLS", DEFAULT_SYMBOLS))
 
-    # --- timeframes: daily (trend filter) and 4h (breakout entry + stops) ---
+    # --- timeframes: daily trend filter (optional) and the entry/stop timeframe ---
     daily_timeframe: str = field(default_factory=lambda: _env("DAILY_TIMEFRAME", "1d"))
-    entry_timeframe: str = field(default_factory=lambda: _env("ENTRY_TIMEFRAME", "4h"))
+    entry_timeframe: str = field(default_factory=lambda: _env("ENTRY_TIMEFRAME", "1d"))
     daily_candle_limit: int = field(default_factory=lambda: int(_env("DAILY_CANDLE_LIMIT", "200")))
     entry_candle_limit: int = field(default_factory=lambda: int(_env("ENTRY_CANDLE_LIMIT", "300")))
 
-    # --- daily trend filter (strategy.detect_trend) ---
-    # Longs only when the daily close is above a rising EMA of this
-    # period, shorts only below a falling one; neutral = no trade.
+    # --- optional daily trend filter (strategy.detect_trend) ---
+    # When on: longs only when the daily close is above a rising EMA of
+    # this period, shorts only below a falling one; neutral = no trade.
+    # Off by default: the tested rule has no trend filter.
+    trend_filter: bool = field(default_factory=lambda: _bool("TREND_FILTER", False))
     trend_ema_period: int = field(default_factory=lambda: int(_env("TREND_EMA_PERIOD", "50")))
 
-    # --- 4h breakout entry (strategy.donchian_breakout) ---
-    # The entry fires on the first 4h close beyond the highest high /
-    # lowest low of this many previous 4h candles (20 = about 3.3 days).
-    breakout_lookback: int = field(default_factory=lambda: int(_env("BREAKOUT_LOOKBACK", "20")))
+    # --- breakout entry (strategy.donchian_breakout) ---
+    # A close beyond the highest high / lowest low of this many previous
+    # entry-timeframe candles (55 daily candles by default).
+    breakout_lookback: int = field(default_factory=lambda: int(_env("BREAKOUT_LOOKBACK", "55")))
+    # true = only the first close outside the channel; false (tested) =
+    # a flat symbol still beyond the channel is entered again.
+    breakout_edge_only: bool = field(default_factory=lambda: _bool("BREAKOUT_EDGE_ONLY", False))
+    # Trailing exit channel: lowest low (long) / highest high (short) of
+    # this many candles. 0 = old chandelier trail only.
+    exit_lookback: int = field(default_factory=lambda: int(_env("EXIT_LOOKBACK", "20")))
 
     # --- ATR stops (strategy.build_trend_entry) ---
-    atr_period: int = field(default_factory=lambda: int(_env("ATR_PERIOD", "14")))
-    # Initial stop distance from entry, in ATRs of the 4h chart.
-    stop_atr_mult: float = field(default_factory=lambda: float(_env("STOP_ATR_MULT", "2.5")))
-    # Trailing ("chandelier") stop: this many ATRs (ATR fixed at entry)
-    # behind the best price reached since entry. There is no take-profit;
-    # the trailing stop is the exit.
-    trail_atr_mult: float = field(default_factory=lambda: float(_env("TRAIL_ATR_MULT", "3")))
+    atr_period: int = field(default_factory=lambda: int(_env("ATR_PERIOD", "20")))
+    # Initial stop distance from entry, in ATRs of the entry timeframe.
+    stop_atr_mult: float = field(default_factory=lambda: float(_env("STOP_ATR_MULT", "2")))
+    # Trailing stop: the latest close minus this many (current) ATRs, or
+    # the exit channel, whichever is tighter. No take-profit.
+    trail_atr_mult: float = field(default_factory=lambda: float(_env("TRAIL_ATR_MULT", "2")))
 
     # --- optional cross-sectional momentum filter (bot.py) ---
     # When on, longs are only taken in the top MOMENTUM_TOP_FRACTION of
@@ -104,6 +111,11 @@ class Config:
         default_factory=lambda: float(_env("MARGIN_PER_TRADE_USDT", "50"))
     )
     max_leverage_hard_cap: int = 10
+    # All open positions together never exceed this many times equity in
+    # notional (3x as tested).
+    max_total_notional_x: float = field(
+        default_factory=lambda: float(_env("MAX_TOTAL_NOTIONAL_X", "3"))
+    )
     max_margin_utilization_pct: float = field(
         default_factory=lambda: float(_env("MAX_MARGIN_UTILIZATION_PCT", "50")) / 100
     )

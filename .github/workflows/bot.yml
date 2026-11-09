@@ -45,19 +45,12 @@ jobs:
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
           SYMBOLS: ${{ vars.SYMBOLS }}
-          DAILY_TIMEFRAME: ${{ vars.DAILY_TIMEFRAME }}
-          ENTRY_TIMEFRAME: ${{ vars.ENTRY_TIMEFRAME }}
-          DAILY_CANDLE_LIMIT: ${{ vars.DAILY_CANDLE_LIMIT }}
-          ENTRY_CANDLE_LIMIT: ${{ vars.ENTRY_CANDLE_LIMIT }}
-          TREND_EMA_PERIOD: ${{ vars.TREND_EMA_PERIOD }}
-          BREAKOUT_LOOKBACK: ${{ vars.BREAKOUT_LOOKBACK }}
-          ATR_PERIOD: ${{ vars.ATR_PERIOD }}
-          STOP_ATR_MULT: ${{ vars.STOP_ATR_MULT }}
-          TRAIL_ATR_MULT: ${{ vars.TRAIL_ATR_MULT }}
-          MOMENTUM_FILTER: ${{ vars.MOMENTUM_FILTER }}
-          MOMENTUM_LOOKBACK_DAYS: ${{ vars.MOMENTUM_LOOKBACK_DAYS }}
-          MOMENTUM_TOP_FRACTION: ${{ vars.MOMENTUM_TOP_FRACTION }}
-          RISK_PCT_PER_TRADE: ${{ vars.RISK_PCT_PER_TRADE }}
+          # Strategy settings (daily 55-day Donchian breakout, 20-day channel /
+          # 2 ATR trailing stop, no trend or momentum filter) are the code
+          # defaults in config.py -- the rule that was backtested. The old
+          # 4h-strategy repo Variables are deliberately no longer passed in.
+          # Risk per trade: 2% of equity (chosen 2026-11-09). Edit here to change.
+          RISK_PCT_PER_TRADE: "2"
           MARGIN_PER_TRADE_USDT: ${{ vars.MARGIN_PER_TRADE_USDT }}
           MAX_MARGIN_UTILIZATION_PCT: ${{ vars.MAX_MARGIN_UTILIZATION_PCT }}
           MAX_DAILY_LOSS_PCT: ${{ vars.MAX_DAILY_LOSS_PCT }}

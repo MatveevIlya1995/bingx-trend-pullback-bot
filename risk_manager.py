@@ -253,16 +253,27 @@ class RiskManager:
         return str(candle_ts) > str(entry_ts)
 
     @staticmethod
-    def _ratchet(trade: dict, high: float, low: float) -> bool:
-        """Moves best_price and the trailing stop forward using this
-        candle's extreme. Never moves the stop backward. Returns True if
-        the stop moved."""
+    def _ratchet(trade: dict, high: float, low: float, levels=None) -> bool:
+        """Moves the trailing stop forward after a closed candle. Never
+        moves the stop backward. Returns True if the stop moved.
+
+        Trades opened with the channel exit (exit_mode == "channel") move
+        to `levels` = (long_level, short_level) from strategy.trail_levels
+        (exit channel / close - ATR). Older trades keep the chandelier
+        trail: trail_distance behind the best price since entry."""
         is_long = trade["position_side"].upper() == "LONG"
         if is_long:
             trade["best_price"] = max(trade["best_price"], high)
-            new_stop = max(trade["stop_loss"], trade["best_price"] - trade["trail_distance"])
         else:
             trade["best_price"] = min(trade["best_price"], low)
+        if trade.get("exit_mode") == "channel":
+            level = None if levels is None else (levels[0] if is_long else levels[1])
+            if level is None:
+                return False
+            new_stop = max(trade["stop_loss"], level) if is_long else min(trade["stop_loss"], level)
+        elif is_long:
+            new_stop = max(trade["stop_loss"], trade["best_price"] - trade["trail_distance"])
+        else:
             new_stop = min(trade["stop_loss"], trade["best_price"] + trade["trail_distance"])
         if new_stop != trade["stop_loss"]:
             trade["stop_loss"] = new_stop
@@ -359,7 +370,8 @@ class RiskManager:
 
         return closed
 
-    def trail_live_stops(self, symbol: str, high: float, low: float, exchange_client, candle_ts=None):
+    def trail_live_stops(self, symbol: str, high: float, low: float, exchange_client, candle_ts=None,
+                         levels=None):
         """Ratchets each open LIVE trade's trailing stop on `symbol` using
         the latest closed candle, and replaces the exchange's stop order
         when it moves. A full exit is detected separately by
@@ -369,8 +381,11 @@ class RiskManager:
         for trade in self.state.get("open_trades", []):
             if trade["symbol"] != symbol or not self._candle_after_entry(trade, candle_ts):
                 continue
+            if trade.get("last_trailed_candle_ts") == str(candle_ts) and candle_ts is not None:
+                continue
+            trade["last_trailed_candle_ts"] = str(candle_ts) if candle_ts is not None else None
             old_stop = trade["stop_loss"]
-            if not self._ratchet(trade, high, low):
+            if not self._ratchet(trade, high, low, levels):
                 continue
             close_side = "sell" if trade["side"].upper() == "BUY" else "buy"
             try:
@@ -429,7 +444,8 @@ class RiskManager:
             "duration_minutes": duration_minutes,
         })
 
-    def reconcile_dry_run_exits(self, symbol: str, high: float, low: float, candle_ts=None) -> list:
+    def reconcile_dry_run_exits(self, symbol: str, high: float, low: float, candle_ts=None,
+                                levels=None) -> list:
         """Checks every open DRY_RUN paper trade on `symbol` against the
         latest CLOSED candle: first whether the stop as it stood before
         this candle was hit (exit at the stop), and only if not, ratchets
@@ -461,7 +477,7 @@ class RiskManager:
                 closed.append(trade)
                 changed = True
                 continue
-            self._ratchet(trade, high, low)
+            self._ratchet(trade, high, low, levels)
             trade["last_managed_candle_ts"] = str(candle_ts) if candle_ts is not None else None
             changed = True
             remaining.append(trade)
@@ -497,8 +513,12 @@ class RiskManager:
             return 0.0, 0
 
         stop_distance_pct = stop_distance / entry
-        max_margin = self.cfg.margin_per_trade_usdt
-        risk_cap = equity * self.cfg.risk_pct_per_trade
+        # Margin per trade: MARGIN_PER_TRADE_USDT, but never more than an
+        # equal share of MAX_MARGIN_UTILIZATION_PCT of equity across the
+        # MAX_CONCURRENT_POSITIONS slots, so every slot can be filled.
+        slot_margin = equity * self.cfg.max_margin_utilization_pct / max(self.cfg.max_concurrent_positions, 1)
+        max_margin = min(self.cfg.margin_per_trade_usdt, slot_margin)
+        risk_cap = equity * min(self.cfg.risk_pct_per_trade, self.cfg.max_risk_pct_per_trade_hard_cap)
 
         notional = risk_cap / stop_distance_pct
         leverage = max(1, math.ceil(notional / max_margin))
@@ -506,7 +526,8 @@ class RiskManager:
             leverage = self.cfg.max_leverage_hard_cap
             notional = max_margin * leverage
 
-        max_total_notional = equity * leverage * self.cfg.max_margin_utilization_pct
+        # Total exposure cap across all open positions (3x equity as tested).
+        max_total_notional = equity * self.cfg.max_total_notional_x
         available_notional = max(max_total_notional - existing_notional, 0.0)
         notional = min(notional, available_notional)
 

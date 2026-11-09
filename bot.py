@@ -1,26 +1,26 @@
 """
-Entry point. Run ONCE PER CYCLE by a scheduler (GitHub Actions every 15
-minutes). The strategy itself works on CLOSED 4h candles, so most runs
-only manage open trades; a new 4h candle closes every 4 hours.
+Entry point. Run ONCE PER CYCLE by a scheduler (GitHub Actions /
+cron-job.org every 15 minutes). The strategy works on CLOSED daily
+candles, so most runs only check open trades; a new daily candle closes
+at 00:00 UTC and the first run after it looks for entries.
 
 Each run:
 1. reads account equity and open positions
 2. reconciles LIVE trades that have closed on the exchange (EXIT rows)
 3. manages every open trade (LIVE or DRY_RUN paper) with its symbol's
-   last closed 4h candle: stop check, then the ATR trailing stop moves
-   forward (see risk_manager.py). Paper trades exit at their stop.
+   last closed daily candle: stop check, then the trailing stop moves to
+   the tighter of the 20-day exit channel and close - 2 ATR
+   (see strategy.trail_levels / risk_manager.py). Paper trades exit at
+   their stop.
 4. checks the daily-loss circuit breaker
-5. scans the watched symbols for new entries (see strategy.py):
-   a. daily trend filter: bullish / bearish / neutral (no trade)
-   b. 4h Donchian breakout in the same direction, first close outside
-      the BREAKOUT_LOOKBACK-candle channel
-   c. optional momentum filter: longs only in the strongest coins,
-      shorts only in the weakest (MOMENTUM_FILTER)
-   When more signals fire than free position slots, the strongest
-   momentum in the trade's direction goes first.
-6. builds entry / ATR stop / ATR trail distance (no take-profit)
-7. sizes from a fixed margin with leverage chosen so a stop-out risks at
-   most RISK_PCT_PER_TRADE of equity (risk_manager.position_size)
+5. scans the watched symbols for new entries (see strategy.py): a close
+   beyond the 55-day Donchian channel; optional daily EMA trend filter
+   (TREND_FILTER) and momentum filter (MOMENTUM_FILTER), both off by
+   default. When more signals fire than free slots, the strongest
+   momentum in the trade's direction goes first (when the filter is on).
+6. builds entry / ATR stop (no take-profit)
+7. sizes so a stop-out risks RISK_PCT_PER_TRADE of equity
+   (risk_manager.position_size)
 8. DRY_RUN=true (default): journals the trade and tracks it on paper
 9. DRY_RUN=false: sets leverage, sends a market entry plus a reduce-only
    stop; the stop is then trailed on later runs
@@ -38,6 +38,7 @@ from strategy import (
     donchian_breakout,
     momentum_return,
     build_trend_entry,
+    trail_levels,
 )
 from risk_manager import RiskManager
 
@@ -48,22 +49,24 @@ def _fetch(client, cfg, symbol, timeframe, limit):
 
 
 def _manage_open_trades(client, risk, cfg, symbol):
-    """Uses the symbol's last CLOSED 4h candle to resolve / trail its open
-    trades. Returns the 4h dataframe for reuse, or None on fetch failure."""
+    """Uses the symbol's last CLOSED entry-timeframe candle to resolve /
+    trail its open trades. Returns the dataframe for reuse, or None on
+    fetch failure."""
     try:
         df = _fetch(client, cfg, symbol, cfg.entry_timeframe, cfg.entry_candle_limit)
     except Exception as e:
-        print(f"[bot] {symbol}: could not fetch 4h candles for trade management ({e}).")
+        print(f"[bot] {symbol}: could not fetch {cfg.entry_timeframe} candles for trade management ({e}).")
         return None
     if df.empty:
         return df
     last = df.iloc[-1]
     high, low, ts = float(last["high"]), float(last["low"]), last["ts"].isoformat()
+    levels = trail_levels(df, cfg.exit_lookback, cfg.atr_period, cfg.trail_atr_mult) if cfg.exit_lookback > 0 else None
 
-    closed = risk.reconcile_dry_run_exits(symbol, high=high, low=low, candle_ts=ts)
+    closed = risk.reconcile_dry_run_exits(symbol, high=high, low=low, candle_ts=ts, levels=levels)
     if closed:
         print(f"[bot] {symbol}: closed {len(closed)} DRY_RUN paper trade(s), logged EXIT row(s).")
-    risk.trail_live_stops(symbol, high=high, low=low, exchange_client=client, candle_ts=ts)
+    risk.trail_live_stops(symbol, high=high, low=low, exchange_client=client, candle_ts=ts, levels=levels)
     return df
 
 
@@ -105,7 +108,7 @@ def _momentum_allows(symbol, direction, scores, cfg):
 
 def _find_candidate(client, cfg, symbol, df_cache, daily_cache, scores):
     daily = daily_cache.get(symbol)
-    if daily is None:
+    if daily is None and cfg.trend_filter:
         try:
             daily = _fetch(client, cfg, symbol, cfg.daily_timeframe, cfg.daily_candle_limit)
         except Exception as e:
@@ -113,7 +116,7 @@ def _find_candidate(client, cfg, symbol, df_cache, daily_cache, scores):
             return None
         daily_cache[symbol] = daily
 
-    trend = detect_trend(daily, ema_period=cfg.trend_ema_period)
+    trend = detect_trend(daily, ema_period=cfg.trend_ema_period) if cfg.trend_filter else None
     if trend == "neutral":
         print(f"[bot] {symbol}: daily trend neutral -- no trade.")
         return None
@@ -123,14 +126,18 @@ def _find_candidate(client, cfg, symbol, df_cache, daily_cache, scores):
         try:
             df = _fetch(client, cfg, symbol, cfg.entry_timeframe, cfg.entry_candle_limit)
         except Exception as e:
-            print(f"[bot] {symbol}: could not fetch 4h candles ({e}). Skipping.")
+            print(f"[bot] {symbol}: could not fetch {cfg.entry_timeframe} candles ({e}). Skipping.")
             return None
         df_cache[symbol] = df
 
-    breakout = donchian_breakout(df, lookback=cfg.breakout_lookback)
-    if breakout != trend:
-        print(f"[bot] {symbol}: daily trend {trend}, no fresh {trend} 4h breakout on the last closed candle.")
+    breakout = donchian_breakout(df, lookback=cfg.breakout_lookback, edge_only=cfg.breakout_edge_only)
+    if breakout is None:
+        print(f"[bot] {symbol}: no {cfg.breakout_lookback}-candle {cfg.entry_timeframe} breakout on the last closed candle.")
         return None
+    if trend is not None and breakout != trend:
+        print(f"[bot] {symbol}: {breakout} breakout against the daily trend ({trend}) -- no trade.")
+        return None
+    trend = breakout
 
     ok, mom_desc = _momentum_allows(symbol, trend, scores, cfg)
     if not ok:
@@ -148,10 +155,12 @@ def _find_candidate(client, cfg, symbol, df_cache, daily_cache, scores):
         return None
 
     trigger_desc = (
-        f"trend following {trend}: daily close vs EMA{cfg.trend_ema_period} = {trend} | "
-        f"4h close {entry['entry']:.6g} broke the {cfg.breakout_lookback}-candle "
+        f"trend following {trend}: "
+        + (f"daily close vs EMA{cfg.trend_ema_period} = {trend} | " if cfg.trend_filter else "")
+        + f"{cfg.entry_timeframe} close {entry['entry']:.6g} broke the {cfg.breakout_lookback}-candle "
         f"{'high' if trend == 'bullish' else 'low'} | ATR{cfg.atr_period}={entry['atr']:.6g}, "
-        f"stop {cfg.stop_atr_mult:g} ATR, trail {cfg.trail_atr_mult:g} ATR, no take-profit"
+        f"stop {cfg.stop_atr_mult:g} ATR, trail: {cfg.exit_lookback}-candle channel or close - "
+        f"{cfg.trail_atr_mult:g} ATR, no take-profit"
         + (f" | {mom_desc}" if mom_desc else "")
     )
     strength = scores.get(symbol, 0.0) * (1 if trend == "bullish" else -1)
@@ -196,6 +205,7 @@ def _try_open_candidate(client, risk, cfg, candidate, equity):
         "qty": round(qty, 6), "entry_price": round(entry["entry"], 6),
         "stop_loss": round(entry["stop_loss"], 6), "take_profit": None,
         "trail_distance": entry["trail_distance"], "entry_candle_ts": entry["entry_candle_ts"],
+        "exit_mode": "channel" if cfg.exit_lookback > 0 else "chandelier",
         "trigger": trigger_desc,
     }
 
@@ -257,7 +267,7 @@ def run_once():
         print("[bot] Already at max concurrent positions. Skipping scan this cycle.")
         return
 
-    scores = _momentum_ranks(client, cfg, daily_cache)
+    scores = _momentum_ranks(client, cfg, daily_cache) if cfg.momentum_filter else {}
 
     candidates = []
     for symbol in cfg.symbols:

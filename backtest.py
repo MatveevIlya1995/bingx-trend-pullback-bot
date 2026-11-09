@@ -1,4 +1,8 @@
 """
+OUTDATED (2026-11-09): this replays the OLD 4h-breakout / daily-EMA rule.
+The bot now trades the daily 55-day Donchian rule -- research.py (the
+"Strategy research" workflow) is the backtest for it.
+
 Backtest of the trend-following strategy on real BingX USDT-M perpetual
 candles, using the bot's own configuration (env vars / repo Variables).
 

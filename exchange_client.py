@@ -18,8 +18,25 @@ REPL) and confirm `create_order` behaves as expected for your account's
 position mode -- see the README for a step-by-step check.
 """
 import datetime
+import time
 
 import ccxt
+
+# BingX answers {"code":100410,"msg":"请稍后重试"} ("retry later") when it is
+# asked for too much too fast -- one run fetches ~75 candle sets (15 symbols x
+# 5 timeframes), and the sibling trend bot shares the same API key. Candle
+# requests are paced and retried with a back-off instead of the symbol being
+# skipped for the whole cycle.
+CANDLE_MIN_INTERVAL_S = 0.25
+RATE_LIMIT_RETRIES = 3
+RATE_LIMIT_BACKOFF_S = 2.0
+
+
+def _is_rate_limited(exc) -> bool:
+    if isinstance(exc, (ccxt.RateLimitExceeded, ccxt.DDoSProtection)):
+        return True
+    return "100410" in str(exc)
+
 
 class ExchangeClient:
     def __init__(self, cfg):
@@ -37,20 +54,66 @@ class ExchangeClient:
         """Fetches OHLCV candles. Defaults to the strategy timeframe/limit
         from config, but callers (e.g. the higher-timeframe trend filter)
         can override both to pull a different timeframe."""
-        return self.exchange.fetch_ohlcv(
-            symbol,
-            timeframe=timeframe or self.cfg.timeframe,
-            limit=limit or self.cfg.candle_limit,
-        )
+        attempt = 0
+        while True:
+            wait = CANDLE_MIN_INTERVAL_S - (time.monotonic() - getattr(self, "_last_candle_call", 0.0))
+            if wait > 0:
+                time.sleep(wait)
+            self._last_candle_call = time.monotonic()
+            try:
+                return self.exchange.fetch_ohlcv(
+                    symbol,
+                    timeframe=timeframe or self.cfg.timeframe,
+                    limit=limit or self.cfg.candle_limit,
+                )
+            except Exception as e:
+                if not _is_rate_limited(e) or attempt >= RATE_LIMIT_RETRIES:
+                    raise
+                attempt += 1
+                time.sleep(RATE_LIMIT_BACKOFF_S * attempt)
+
+    @staticmethod
+    def _usdt_equity_from_info(info):
+        """Finds the USDT account's 'equity' field anywhere in BingX's raw
+        balance payload (its shape differs between API versions: a dict
+        under data.balance, or a list of per-asset dicts)."""
+        stack = [info]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                if "equity" in node and str(node.get("asset", "USDT")).upper() == "USDT":
+                    try:
+                        return float(node["equity"])
+                    except (TypeError, ValueError):
+                        pass
+                stack.extend(node.values())
+            elif isinstance(node, list):
+                stack.extend(node)
+        return None
 
     def fetch_balance_usdt(self) -> float:
+        """Total USDT account equity (wallet balance + unrealized P/L), read
+        from BingX's own 'equity' field.
+
+        NOT the free/available balance, and not ccxt's computed 'total'
+        either: both shrink when margin is frozen by resting limit orders
+        (ccxt's total = available + position margin, which leaves frozen
+        order margin out). Using them made the bot read its own resting
+        orders as an ~80% loss, trip the daily-loss breaker and cancel
+        everything every other run."""
         bal = self.exchange.fetch_balance()
-        usdt = bal.get("USDT", {})
+        equity = self._usdt_equity_from_info(bal.get("info"))
+        if equity is not None and equity > 0:
+            return equity
+        print("[exchange] WARNING: no 'equity' field in BingX balance response -- falling back to ccxt total/free.")
+        usdt = bal.get("USDT", {}) or {}
+        total = usdt.get("total")
+        if total is None:
+            total = (bal.get("total", {}) or {}).get("USDT")
+        if total:
+            return float(total)
         free = usdt.get("free")
-        if free:
-            return float(free)
-        total = bal.get("total", {}).get("USDT")
-        return float(total) if total else 0.0
+        return float(free) if free else 0.0
 
     def fetch_open_positions(self):
         """Open positions across every symbol the bot is configured to watch
