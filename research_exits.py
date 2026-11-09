@@ -75,7 +75,12 @@ def run_trade(plan, side, entry_i, stop0, h1, S, daily_trail):
         return None
     stop = stop0
     parts, remaining = [], 1.0
-    tp = [(entry + 3 * risk * side, 1 / 3), (entry + 5 * risk * side, 1 / 3)] if plan != "A" else []
+    if plan == "A":
+        tp = []
+    elif plan == "D":
+        tp = [(entry + 3 * risk * side, 0.5), (entry + 5 * risk * side, 0.5)]
+    else:
+        tp = [(entry + 3 * risk * side, 1 / 3), (entry + 5 * risk * side, 1 / 3)]
     ref = None          # (index, price) of the latest confirmed swing in the trade's direction
     ref_broken = True
     bos_count = 0
@@ -94,12 +99,16 @@ def run_trade(plan, side, entry_i, stop0, h1, S, daily_trail):
                 parts.append((frac, px))
                 remaining -= frac
                 tp.pop(0)
+                if plan == "D":
+                    stop = max(stop, entry) if side > 0 else min(stop, entry)   # TP1 -> breakeven
                 if plan.startswith("C"):
                     # stop moves only on a target: TP1 -> entry, TP2 -> TP1's price
                     lvl_new = entry if len(tp) == 1 else entry + 3 * risk * side
                     stop = max(stop, lvl_new) if side > 0 else min(stop, lvl_new)
             else:
                 break
+        if remaining <= 1e-9:          # everything taken at the targets
+            return i, parts, entry, risk
         if stop_hit:   # gapped over a target, then the stop on the same candle
             parts.append((remaining, stop))
             return i, parts, entry, risk
@@ -173,7 +182,7 @@ def main():
     split = max(pd.Timestamp("2025-04-03"), start + (end - start) / 2) if start < pd.Timestamp("2025-04-03") else start + (end - start) / 2
 
     # candidate trades per plan
-    PLANS = ("A", "B 1h", "B 4h", "C", "C 1h", "C 4h")
+    PLANS = ("A", "B 1h", "C", "D")
     cands = {p: [] for p in PLANS}
     for sym in d1:
         df = d1[sym]
@@ -209,7 +218,8 @@ def main():
              "A = current exit (20-day channel / 2 ATR, whole position). "
              "B = TP1 3R (1/3), TP2 5R (1/3), stop to entry at the first BOS, then to the last swing at every BOS, runner until the CHoCH; structure read on 1h or 4h candles (built from the 1h data). "
              "C = TP1 3R (1/3), TP2 5R (1/3), stop moves ONLY at the targets: to the entry at TP1, to TP1's price at TP2; "
-             "C = the last third waits at that stop; C 1h / C 4h = after TP2 the last third also trails to the last swing at every BOS (exit at the CHoCH).", "",
+             "C = the last third waits at that stop; C 1h / C 4h = after TP2 the last third also trails to the last swing at every BOS (exit at the CHoCH). "
+             "D = TP1 3R (50%), TP2 5R (50%), stop to the entry after TP1, no trailing.", "",
              "| plan | period | trades | win rate | PF | avg R | reached 3R | reached 5R | avg days held | return | CAGR | max DD |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for plan in PLANS:
