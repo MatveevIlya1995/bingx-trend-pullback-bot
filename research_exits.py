@@ -94,6 +94,10 @@ def run_trade(plan, side, entry_i, stop0, h1, S, daily_trail):
                 parts.append((frac, px))
                 remaining -= frac
                 tp.pop(0)
+                if plan.startswith("C"):
+                    # stop moves only on a target: TP1 -> entry, TP2 -> TP1's price
+                    lvl_new = entry if len(tp) == 1 else entry + 3 * risk * side
+                    stop = max(stop, lvl_new) if side > 0 else min(stop, lvl_new)
             else:
                 break
         if stop_hit:   # gapped over a target, then the stop on the same candle
@@ -106,7 +110,7 @@ def run_trade(plan, side, entry_i, stop0, h1, S, daily_trail):
                 lvl = daily_trail.at[ts[i].normalize()]
                 if not np.isnan(lvl):
                     stop = max(stop, lvl) if side > 0 else min(stop, lvl)
-        elif S["last"][i]:
+        elif S is not None and S["last"][i]:
             k = S["k"][i]                # structure candle k just closed
             k0 = S["k"][entry_i]
             sh_, sl_, sc, shh, sll = S["sh"], S["sl"], S["c"], S["h"], S["l"]
@@ -119,6 +123,15 @@ def run_trade(plan, side, entry_i, stop0, h1, S, daily_trail):
             if ref is not None and not ref_broken and ((sc[k] > ref[1]) if side > 0 else (sc[k] < ref[1])):
                 ref_broken = True
                 bos_count += 1
+                if plan.startswith("C"):
+                    # C 1h / C 4h: only the runner (after TP2) trails, to the
+                    # swing the breaking move started from
+                    if tp:
+                        continue
+                    seg = sll[ref[0]:k + 1] if side > 0 else shh[ref[0]:k + 1]
+                    new = seg.min() if side > 0 else seg.max()
+                    stop = max(stop, new) if side > 0 else min(stop, new)
+                    continue
                 if bos_count == 1:
                     new = entry
                 else:
@@ -160,13 +173,14 @@ def main():
     split = max(pd.Timestamp("2025-04-03"), start + (end - start) / 2) if start < pd.Timestamp("2025-04-03") else start + (end - start) / 2
 
     # candidate trades per plan
-    PLANS = ("A", "B 1h", "B 4h")
+    PLANS = ("A", "B 1h", "B 4h", "C", "C 1h", "C 4h")
     cands = {p: [] for p in PLANS}
     for sym in d1:
         df = d1[sym]
         sig = R.donchian(df, 55, 20)
         hh = h1[sym]
-        structs = {"B 1h": structure(hh, "1h"), "B 4h": structure(hh, "4h")}
+        s1, s4 = structure(hh, "1h"), structure(hh, "4h")
+        structs = {"B 1h": s1, "B 4h": s4, "C 1h": s1, "C 4h": s4}
         idx = hh.index
         for day, row in sig.iterrows():
             nxt = day + pd.Timedelta(days=1)
@@ -193,7 +207,9 @@ def main():
              f"Split for the two halves: {split.date()}. 1% risk per trade, max 5 positions, one per symbol, "
              f"fee+slippage {FEE*100:g}% per side, funding {FUND*100:g}%/day on longs. "
              "A = current exit (20-day channel / 2 ATR, whole position). "
-             "B = TP1 3R (1/3), TP2 5R (1/3), stop to entry at the first BOS, then to the last swing at every BOS, runner until the CHoCH; structure read on 1h or 4h candles (built from the 1h data).", "",
+             "B = TP1 3R (1/3), TP2 5R (1/3), stop to entry at the first BOS, then to the last swing at every BOS, runner until the CHoCH; structure read on 1h or 4h candles (built from the 1h data). "
+             "C = TP1 3R (1/3), TP2 5R (1/3), stop moves ONLY at the targets: to the entry at TP1, to TP1's price at TP2; "
+             "C = the last third waits at that stop; C 1h / C 4h = after TP2 the last third also trails to the last swing at every BOS (exit at the CHoCH).", "",
              "| plan | period | trades | win rate | PF | avg R | reached 3R | reached 5R | avg days held | return | CAGR | max DD |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for plan in PLANS:
