@@ -48,7 +48,23 @@ def swings(df1h):
     return sh, sl
 
 
-def run_trade(plan, side, entry_i, stop0, h1, sh, sl, daily_trail):
+def structure(h1, tf):
+    """Candles the BOS/CHoCH are read on, built from the 1h candles, plus
+    for every 1h candle: the index of its structure candle and whether it
+    is that candle's last hour (when the structure candle closes)."""
+    if tf == "1h":
+        st = h1
+    else:
+        st = h1.resample(tf).agg({"open": "first", "high": "max", "low": "min", "close": "last"}).dropna()
+    sh, sl = swings(st)
+    kidx = st.index.searchsorted(h1.index.floor(tf), side="left")
+    nxt = np.r_[kidx[1:], -1]
+    last = kidx != nxt
+    return {"h": st["high"].values, "l": st["low"].values, "c": st["close"].values,
+            "sh": sh, "sl": sl, "k": kidx, "last": last}
+
+
+def run_trade(plan, side, entry_i, stop0, h1, S, daily_trail):
     """Walk one trade on 1h candles from bar entry_i. Returns
     (exit_i, parts) with parts = [(fraction, exit_price)], or None."""
     o, hi, lo, c = (h1[k].values for k in ("open", "high", "low", "close"))
@@ -59,7 +75,7 @@ def run_trade(plan, side, entry_i, stop0, h1, sh, sl, daily_trail):
         return None
     stop = stop0
     parts, remaining = [], 1.0
-    tp = [(entry + 3 * risk * side, 1 / 3), (entry + 5 * risk * side, 1 / 3)] if plan == "B" else []
+    tp = [(entry + 3 * risk * side, 1 / 3), (entry + 5 * risk * side, 1 / 3)] if plan != "A" else []
     ref = None          # (index, price) of the latest confirmed swing in the trade's direction
     ref_broken = True
     bos_count = 0
@@ -90,20 +106,23 @@ def run_trade(plan, side, entry_i, stop0, h1, sh, sl, daily_trail):
                 lvl = daily_trail.at[ts[i].normalize()]
                 if not np.isnan(lvl):
                     stop = max(stop, lvl) if side > 0 else min(stop, lvl)
-        else:
-            j = i - FRACTAL_N            # a swing at j is confirmed once i closes
-            if j > entry_i:
-                if side > 0 and sh[j]:
-                    ref, ref_broken = (j, hi[j]), False
-                if side < 0 and sl[j]:
-                    ref, ref_broken = (j, lo[j]), False
-            if ref is not None and not ref_broken and ((c[i] > ref[1]) if side > 0 else (c[i] < ref[1])):
+        elif S["last"][i]:
+            k = S["k"][i]                # structure candle k just closed
+            k0 = S["k"][entry_i]
+            sh_, sl_, sc, shh, sll = S["sh"], S["sl"], S["c"], S["h"], S["l"]
+            j = k - FRACTAL_N            # a swing at j is confirmed once k closes
+            if j > k0:
+                if side > 0 and sh_[j]:
+                    ref, ref_broken = (j, shh[j]), False
+                if side < 0 and sl_[j]:
+                    ref, ref_broken = (j, sll[j]), False
+            if ref is not None and not ref_broken and ((sc[k] > ref[1]) if side > 0 else (sc[k] < ref[1])):
                 ref_broken = True
                 bos_count += 1
                 if bos_count == 1:
                     new = entry
                 else:
-                    seg = lo[ref[0]:i + 1] if side > 0 else hi[ref[0]:i + 1]
+                    seg = sll[ref[0]:k + 1] if side > 0 else shh[ref[0]:k + 1]
                     origin = seg.min() if side > 0 else seg.max()
                     new = max(origin, entry) if side > 0 else min(origin, entry)
                 stop = max(stop, new) if side > 0 else min(stop, new)
@@ -141,12 +160,13 @@ def main():
     split = max(pd.Timestamp("2025-04-03"), start + (end - start) / 2) if start < pd.Timestamp("2025-04-03") else start + (end - start) / 2
 
     # candidate trades per plan
-    cands = {"A": [], "B": []}
+    PLANS = ("A", "B 1h", "B 4h")
+    cands = {p: [] for p in PLANS}
     for sym in d1:
         df = d1[sym]
         sig = R.donchian(df, 55, 20)
         hh = h1[sym]
-        sh, sl = swings(hh)
+        structs = {"B 1h": structure(hh, "1h"), "B 4h": structure(hh, "4h")}
         idx = hh.index
         for day, row in sig.iterrows():
             nxt = day + pd.Timedelta(days=1)
@@ -159,8 +179,8 @@ def main():
                 k = idx.searchsorted(nxt)
                 if k >= len(idx) or idx[k] != nxt:
                     continue
-                for plan in ("A", "B"):
-                    r = run_trade(plan, side, k, stop0, hh, sh, sl, sig[trail_col])
+                for plan in PLANS:
+                    r = run_trade(plan, side, k, stop0, hh, structs.get(plan), sig[trail_col])
                     if r is None:
                         continue
                     exit_i, parts, entry, risk = r
@@ -173,10 +193,10 @@ def main():
              f"Split for the two halves: {split.date()}. 1% risk per trade, max 5 positions, one per symbol, "
              f"fee+slippage {FEE*100:g}% per side, funding {FUND*100:g}%/day on longs. "
              "A = current exit (20-day channel / 2 ATR, whole position). "
-             "B = TP1 3R (1/3), TP2 5R (1/3), stop to entry at the first 1h BOS, then to the last swing at every BOS, runner until the 1h CHoCH.", "",
+             "B = TP1 3R (1/3), TP2 5R (1/3), stop to entry at the first BOS, then to the last swing at every BOS, runner until the CHoCH; structure read on 1h or 4h candles (built from the 1h data).", "",
              "| plan | period | trades | win rate | PF | avg R | reached 3R | reached 5R | avg days held | return | CAGR | max DD |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
-    for plan in ("A", "B"):
+    for plan in PLANS:
         for label, a, b in (("1st part", start, split), ("2nd part", split, end), ("whole", start, end)):
             cs = sorted([c for c in cands[plan] if a <= c["t_in"] < b], key=lambda c: c["t_in"])
             eq, peak, dd = 1000.0, 1000.0, 0.0
