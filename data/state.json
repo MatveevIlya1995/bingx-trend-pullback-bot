@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-09",
+  "date": "2026-11-10",
   "day_start_equity": 157.0001,
   "realized_pnl_today": 0.0,
   "open_trades": [],
@@ -22,7 +22,7 @@
       "initial_stop": 0.071867,
       "risk_per_unit": 0.004347000000000004,
       "best_price": 0.06425,
-      "last_managed_candle_ts": "2026-11-08T00:00:00"
+      "last_managed_candle_ts": "2026-11-09T00:00:00"
     },
     {
       "trade_id": "e7167ee7f479",
@@ -42,7 +42,7 @@
       "initial_stop": 0.164417,
       "risk_per_unit": 0.010337000000000013,
       "best_price": 0.14301,
-      "last_managed_candle_ts": "2026-11-08T00:00:00"
+      "last_managed_candle_ts": "2026-11-09T00:00:00"
     },
     {
       "trade_id": "040f6ecd9a04",
@@ -62,7 +62,7 @@
       "initial_stop": 54.854798,
       "risk_per_unit": 3.0947980000000044,
       "best_price": 49.28,
-      "last_managed_candle_ts": "2026-11-08T00:00:00"
+      "last_managed_candle_ts": "2026-11-09T00:00:00"
     },
     {
       "trade_id": "cd817b34f915",
@@ -82,7 +82,8 @@
       "initial_qty": 0.000694,
       "initial_stop": 79344.261787,
       "risk_per_unit": 4526.66178699999,
-      "best_price": 74817.6
+      "best_price": 73715.0,
+      "last_managed_candle_ts": "2026-11-09T00:00:00"
     },
     {
       "trade_id": "70c7cda7deb1",
@@ -102,7 +103,8 @@
       "initial_qty": 0.016245,
       "initial_stop": 2319.735167,
       "risk_per_unit": 193.285167,
-      "best_price": 2126.45
+      "best_price": 2081.76,
+      "last_managed_candle_ts": "2026-11-09T00:00:00"
     }
   ],
   "dry_run_signaled": {},
