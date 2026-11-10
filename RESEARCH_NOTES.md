@@ -83,9 +83,48 @@ What the exit tests show:
   was in 2024; it has the smallest drawdown besides B 1h.
 - **The bot still runs A. No decision yet on switching the exit plan.**
 
+## 4. Money management (`research_mm.py`, "Money management research" workflow), 2026-11-10
+
+One account simulated hour by hour on 1h candles, 2024-04-28 to 2026-11-10, $1000 start,
+max 5 positions, daily 55-day entries. Max DD marked to market every hour.
+
+| Scenario | Per year | Max DD | Per year / DD | 1st / 2nd half per year |
+|---|---|---|---|---|
+| A 1% | +10.2% | 19.7% | 0.52 | +8.4% / +11.0% |
+| A 1.5% | +14.2% | 28.2% | 0.50 | +10.6% / +16.0% |
+| A 2% (bot now) | +17.4% | 35.8% | 0.48 | +11.7% / +20.8% |
+| B 1% | +8.2% | 12.1% | 0.68 | +11.4% / +4.8% |
+| B 1.5% | +11.9% | 17.6% | 0.68 | +17.1% / +6.6% |
+| **B 2%** | **+15.5%** | **22.9%** | **0.68** | +22.9% / +8.0% |
+| A 1.5% + caps (6% total risk, max 3 one direction) | +5.2% | 22.2% | 0.23 | |
+| A 1.5% + caps + drawdown brake (half risk >10% below peak) | -0.8% | 18.0% | - | |
+| B 1.5% + caps + brake | +6.2% | 12.5% | 0.49 | |
+| A 1.5% + pyramiding (+1 ATR, +2 ATR) | +11.4% | 57.1% | 0.20 | |
+| A 1.5% + pyramiding + caps + brake | +8.9% | 29.1% | 0.31 | |
+
+Non-crypto perps (gold, oil, indices, forex; 1h history only from late 2025), same window from
+2025-10-18, A 1.5% + caps + brake: crypto only +27.6%/yr, with non-crypto -2.6%/yr (non-crypto
+trades lost $136, crypto made $108); B with non-crypto -21%/yr.
+
+Real account size ($157) with BingX minimum order sizes:
+
+| Scenario | Per year | Max DD | Worst calendar year |
+|---|---|---|---|
+| A 1.5% | +7.0% | 29.8% | -11.0% |
+| A 2% (bot now) | +8.4% | 35.4% | -12.2% |
+| B 1.5% | +11.3% | 18.3% | +1.2% |
+| **B 2%** | **+16.3%** | **22.1%** | **+2.4%** |
+
+Conclusions: risk caps, the drawdown brake, pyramiding and non-crypto symbols all made results
+worse -> rejected. B beats A on return per unit of drawdown at every risk level, and at the
+real $157 size it beats A outright (minimum order sizes hurt A's wider trades). Caveat: B made
+most of its money in the 1st half (to Aug 2025), A in the 2nd half.
+Decision candidate: **exit plan B at 2% risk, crypto only, no caps/brake/pyramiding.**
+
 ## How to rerun
 
 - Strategy comparison: Actions -> "Strategy research" -> Run workflow (`research.py`).
+- Money management: Actions -> "Money management research" (`research_mm.py`; the workflow currently passes `--small-only`, remove it for the full run).
 - Exit plans: Actions -> "Exit plan research" -> Run workflow (`research_exits.py`). Plans are
   defined in `run_trade()`; `PLANS` in `main()` picks which ones run.
 - Results show in the run's annotations (summary page).
