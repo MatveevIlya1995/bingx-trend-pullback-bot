@@ -79,6 +79,23 @@ class Config:
     # this many candles. 0 = old chandelier trail only.
     exit_lookback: int = field(default_factory=lambda: int(_env("EXIT_LOOKBACK", "20")))
 
+    # --- exit plan ---
+    # "structure" (plan B, chosen 2026-11-10, see RESEARCH_NOTES.md section 4):
+    #   TP1 at TP1_R x risk closes TP1_FRACTION, TP2 at TP2_R closes TP2_FRACTION,
+    #   stop to entry at the first 1h BOS, then to the last swing at every BOS,
+    #   runner until the 1h CHoCH (strategy.structure_step).
+    # "channel" (plan A, the old exit): whole position, 20-day channel /
+    #   close - 2 ATR trail after each daily close, no take-profit.
+    # Only NEW trades use this; open trades keep the exit they were opened with.
+    exit_plan: str = field(default_factory=lambda: _env("EXIT_PLAN", "structure").strip().lower())
+    structure_timeframe: str = field(default_factory=lambda: _env("STRUCTURE_TIMEFRAME", "1h"))
+    structure_candle_limit: int = field(default_factory=lambda: int(_env("STRUCTURE_CANDLE_LIMIT", "500")))
+    fractal_n: int = field(default_factory=lambda: int(_env("FRACTAL_N", "2")))
+    tp1_r: float = field(default_factory=lambda: float(_env("TP1_R", "3")))
+    tp2_r: float = field(default_factory=lambda: float(_env("TP2_R", "5")))
+    tp1_fraction: float = field(default_factory=lambda: float(_env("TP1_FRACTION", str(1 / 3))))
+    tp2_fraction: float = field(default_factory=lambda: float(_env("TP2_FRACTION", str(1 / 3))))
+
     # --- ATR stops (strategy.build_trend_entry) ---
     atr_period: int = field(default_factory=lambda: int(_env("ATR_PERIOD", "20")))
     # Initial stop distance from entry, in ATRs of the entry timeframe.
@@ -172,6 +189,12 @@ def load_config() -> Config:
         if getattr(cfg, name) <= 0:
             print(f"[config] {name.upper()}={getattr(cfg, name)} must be positive; using 3.")
             setattr(cfg, name, 3.0)
+    if cfg.exit_plan not in ("structure", "channel"):
+        print(f"[config] EXIT_PLAN={cfg.exit_plan!r} unknown; using 'structure'.")
+        cfg.exit_plan = "structure"
+    if cfg.tp1_fraction < 0 or cfg.tp2_fraction < 0 or cfg.tp1_fraction + cfg.tp2_fraction >= 1:
+        print("[config] TP1_FRACTION + TP2_FRACTION must leave a runner; using 1/3 + 1/3.")
+        cfg.tp1_fraction = cfg.tp2_fraction = 1 / 3
     if cfg.breakout_lookback < 2:
         print(f"[config] BREAKOUT_LOOKBACK={cfg.breakout_lookback} too small; using 20.")
         cfg.breakout_lookback = 20

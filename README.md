@@ -1,6 +1,6 @@
 # BingX Trend-Following Futures Bot
 
-A rule-based bot for BingX USDT-M perpetual futures that follows trends on the **daily** chart: it buys a close above the 55-day high, shorts a close below the 55-day low, exits only on a trailing stop (no fixed take-profit), and risks a fixed slice of equity per trade (2%). A daily-loss circuit breaker halts new entries after a bad day.
+A rule-based bot for BingX USDT-M perpetual futures that follows trends on the **daily** chart: it buys a close above the 55-day high, shorts a close below the 55-day low, takes 1/3 profit at 3R and 1/3 at 5R and trails the rest on 1h market structure (exit plan B, since 2026-11-10), and risks a fixed slice of equity per trade (2%). A daily-loss circuit breaker halts new entries after a bad day.
 
 The repo name is historical: until October 2026 this bot traded a weekly-trend / daily-pullback / 4h-trigger strategy, then a 4h Donchian breakout with a daily EMA filter. Since 2026-11-09 it trades the daily rule below, the one that held up in testing. Sibling of [bingx-order-block-bot](https://github.com/MatveevIlya1995/bingx-order-block-bot), whose order-block strategy was retired the same day after backtests showed it losing on every timeframe.
 
@@ -9,7 +9,8 @@ The repo name is historical: until October 2026 this bot traded a weekly-trend /
 1. **Daily breakout** -- the last closed daily candle closes at or above the highest high (long) or at or below the lowest low (short) of the previous `BREAKOUT_LOOKBACK` (55) daily candles (`strategy.donchian_breakout`). A flat coin still beyond the channel is entered again after a stop-out (`BREAKOUT_EDGE_ONLY=false`).
 2. **No trend or momentum filter by default** -- `TREND_FILTER` (daily EMA) and `MOMENTUM_FILTER` exist but are off; the tested rule has neither, and the EMA-filtered versions did slightly worse.
 3. **Initial stop** -- `STOP_ATR_MULT` (2) x ATR(`ATR_PERIOD`, 20) from the entry (`strategy.build_trend_entry`).
-4. **Trailing stop, no take-profit** -- after every closed daily candle the stop moves to the tighter of the `EXIT_LOOKBACK` (20)-day channel (lowest low for a long, highest high for a short) and the close minus/plus `TRAIL_ATR_MULT` (2) x the current ATR, never backwards (`strategy.trail_levels`, `risk_manager._ratchet`).
+4. **Exit plan B (`EXIT_PLAN=structure`, default since 2026-11-10)** -- R = the initial stop distance. TP1 at `TP1_R` (3R) closes `TP1_FRACTION` (1/3), TP2 at `TP2_R` (5R) closes `TP2_FRACTION` (1/3), the last third runs. On closed 1h candles (fractal swings, 2 candles each side, only swings after the entry hour): the first BOS in the trade's direction moves the stop to the entry; every later BOS moves it to the swing the breaking move started from; the runner ends at the first CHoCH against the trade (that stop being hit) (`strategy.structure_step`, `risk_manager.manage_structure_trades`). Live: TP1/TP2 rest on the exchange as reduce-only orders. Chosen after `research_mm.py`: at the real $157 account size B at 2% made +16.3%/yr with a 22% max drawdown, against +8.4%/yr and 35% for plan A (RESEARCH_NOTES.md section 4).
+   **Exit plan A (`EXIT_PLAN=channel`, trades opened before the switch)** -- no take-profit; after every closed daily candle the stop moves to the tighter of the `EXIT_LOOKBACK` (20)-day channel (lowest low for a long, highest high for a short) and the close minus/plus `TRAIL_ATR_MULT` (2) x the current ATR, never backwards (`strategy.trail_levels`, `risk_manager._ratchet`).
 5. **Volatility sizing** -- position size = (`RISK_PCT_PER_TRADE` of equity) / stop distance, so every trade risks the same amount whatever the coin's volatility. Margin per trade is at most an equal share of `MAX_MARGIN_UTILIZATION_PCT` of equity across the `MAX_CONCURRENT_POSITIONS` slots; leverage is the lowest that fits (10x cap); all positions together stay under `MAX_TOTAL_NOTIONAL_X` (3) x equity; risk is hard-capped at 3% (`risk_manager.position_size`).
 
 Trend following makes money on a few large winners and loses small amounts on many false breakouts; a 35-45% win rate is normal, and losing months (2025 was a losing year in the test) are part of it.
@@ -84,6 +85,10 @@ Or use the included `.github/workflows/bot.yml` (runs every 15 minutes via GitHu
 | `ENTRY_TIMEFRAME` | `1d` | Entry / stop timeframe |
 | `BREAKOUT_LOOKBACK` | `55` | Candles in the breakout channel |
 | `BREAKOUT_EDGE_ONLY` | `false` | `true` = only the first close outside the channel |
+| `EXIT_PLAN` | `structure` | `structure` = plan B (TP1/TP2 + 1h BOS/CHoCH stop), `channel` = plan A (daily channel / ATR trail). Only new trades; open ones keep their exit |
+| `TP1_R` / `TP2_R` | `3` / `5` | Plan B targets in multiples of the initial risk |
+| `TP1_FRACTION` / `TP2_FRACTION` | `1/3` / `1/3` | Share of the position closed at each target (the rest is the runner) |
+| `STRUCTURE_TIMEFRAME` / `STRUCTURE_CANDLE_LIMIT` / `FRACTAL_N` | `1h` / `500` / `2` | Plan B structure candles and swing definition |
 | `EXIT_LOOKBACK` | `20` | Candles in the trailing exit channel (0 = old chandelier trail) |
 | `ATR_PERIOD` | `20` | ATR length |
 | `STOP_ATR_MULT` | `2` | Initial stop distance in ATRs |

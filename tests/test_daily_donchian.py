@@ -22,7 +22,8 @@ ENV_KEYS = ["SYMBOLS", "DRY_RUN", "RISK_PCT_PER_TRADE", "MAX_CONCURRENT_POSITION
             "MAX_MARGIN_UTILIZATION_PCT", "ENTRY_TIMEFRAME", "BREAKOUT_LOOKBACK", "EXIT_LOOKBACK", "ATR_PERIOD",
             "STOP_ATR_MULT", "TRAIL_ATR_MULT", "TREND_FILTER", "MOMENTUM_FILTER", "BREAKOUT_EDGE_ONLY",
             "MAX_TOTAL_NOTIONAL_X", "MAX_DAILY_LOSS_PCT", "STATE_PATH", "TRADES_CSV_PATH", "LOG_PATH",
-            "BINGX_API_KEY", "BINGX_API_SECRET"]
+            "BINGX_API_KEY", "BINGX_API_SECRET", "EXIT_PLAN", "TP1_R", "TP2_R", "TP1_FRACTION",
+            "TP2_FRACTION", "FRACTAL_N", "STRUCTURE_TIMEFRAME"]
 
 
 @pytest.fixture
@@ -136,6 +137,7 @@ def test_dry_run_trades_a_trend_end_to_end(env, monkeypatch):
     monkeypatch.setenv("BINGX_API_KEY", "k")
     monkeypatch.setenv("BINGX_API_SECRET", "s")
     monkeypatch.setenv("DRY_RUN", "true")
+    monkeypatch.setenv("EXIT_PLAN", "channel")   # this test covers exit plan A
 
     def client(cfg):
         c = exchange_client.ExchangeClient.__new__(exchange_client.ExchangeClient)

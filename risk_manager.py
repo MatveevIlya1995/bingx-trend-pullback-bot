@@ -381,6 +381,8 @@ class RiskManager:
         for trade in self.state.get("open_trades", []):
             if trade["symbol"] != symbol or not self._candle_after_entry(trade, candle_ts):
                 continue
+            if trade.get("exit_mode") == "structure":
+                continue   # managed by manage_structure_trades() on 1h candles
             if trade.get("last_trailed_candle_ts") == str(candle_ts) and candle_ts is not None:
                 continue
             trade["last_trailed_candle_ts"] = str(candle_ts) if candle_ts is not None else None
@@ -459,7 +461,8 @@ class RiskManager:
             return []
         remaining, closed, changed = [], [], False
         for trade in open_trades:
-            if trade["symbol"] != symbol or not self._candle_after_entry(trade, candle_ts):
+            if (trade["symbol"] != symbol or trade.get("exit_mode") == "structure"
+                    or not self._candle_after_entry(trade, candle_ts)):
                 remaining.append(trade)
                 continue
             if trade.get("last_managed_candle_ts") == str(candle_ts) and candle_ts is not None:
@@ -483,6 +486,71 @@ class RiskManager:
             remaining.append(trade)
         if changed:
             self.state["open_dry_run_trades"] = remaining
+            self._save_state()
+        return closed
+
+    # --- exit plan B ("structure"): partial targets + 1h BOS/CHoCH stop ---
+    def has_structure_trade(self, symbol: str) -> bool:
+        return any(t["symbol"] == symbol and t.get("exit_mode") == "structure"
+                   for t in self.state.get("open_trades", []) + self.state.get("open_dry_run_trades", []))
+
+    def manage_structure_trades(self, symbol: str, h1, exchange_client=None, live_sizes=None) -> list:
+        """Runs strategy.structure_step for every open "structure" trade on
+        `symbol` with its closed 1h candles.
+        Paper trades: target and stop fills are simulated here; each fill
+        logs an EXIT row for the quantity it closed (partial or final).
+        LIVE trades: TP1/TP2 rest on the exchange (placed at entry); a
+        smaller exchange position size (live_sizes[(symbol, side)]) marks
+        targets as filled. When the stop moves or the size shrinks, the
+        exchange stop is replaced for the remaining quantity. A full exit
+        is logged by reconcile_closed_trades(). Returns closed paper trades."""
+        from strategy import structure_step
+        closed, changed = [], False
+        remaining = []
+        for trade in self.state.get("open_dry_run_trades", []):
+            if trade["symbol"] != symbol or trade.get("exit_mode") != "structure":
+                remaining.append(trade)
+                continue
+            before = (trade.get("last_structure_ts"), trade["stop_loss"])
+            events, done = structure_step(trade, h1, self.cfg.fractal_n, simulate_fills=True)
+            for reason, qty, px in events:
+                self._close_dry_run_trade(trade, exit_price=px, qty=qty, reason=reason)
+                print(f"[risk] {symbol}: paper {reason}, closed {qty:.6g} at {px:.6g}")
+            if before != (trade.get("last_structure_ts"), trade["stop_loss"]) or events:
+                changed = True
+            if trade["stop_loss"] != before[1]:
+                print(f"[risk] {symbol}: paper stop moved to {trade['stop_loss']:.6g} (1h BOS #{trade.get('bos_count', 0)})")
+            if done:
+                closed.append(trade)
+            else:
+                remaining.append(trade)
+        self.state["open_dry_run_trades"] = remaining
+
+        for trade in self.state.get("open_trades", []):
+            if trade["symbol"] != symbol or trade.get("exit_mode") != "structure":
+                continue
+            old_stop, old_qty = trade["stop_loss"], trade["qty"]
+            size = (live_sizes or {}).get((symbol, trade["position_side"].upper()))
+            if size is not None and size < trade["qty"] - 1e-12:
+                filled = trade["qty"] - size
+                tps = trade.get("tps") or []
+                while tps and filled > 1e-12:
+                    filled -= tps.pop(0)["qty"]
+                trade["tps"] = tps
+                trade["qty"] = size
+            structure_step(trade, h1, self.cfg.fractal_n, simulate_fills=False)
+            changed = True
+            if exchange_client is not None and (trade["stop_loss"] != old_stop or trade["qty"] != old_qty):
+                close_side = "sell" if trade["side"].upper() == "BUY" else "buy"
+                try:
+                    exchange_client.replace_stop_order(
+                        symbol=symbol, side=close_side, amount=trade["qty"],
+                        new_stop_price=trade["stop_loss"], position_side=trade["position_side"],
+                    )
+                except Exception as e:
+                    print(f"[risk] {symbol}: could not move the structure stop, leaving it: {e}")
+                    trade["stop_loss"] = old_stop
+        if changed:
             self._save_state()
         return closed
 

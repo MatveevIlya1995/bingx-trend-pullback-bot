@@ -6,7 +6,7 @@ Everything tested on 2026-11-09/10, so work can pick up from here.
 
 | | Order block bot | Trend bot (this repo) |
 |---|---|---|
-| Strategy | Order block / smart-money (retired) | Daily 55-day Donchian breakout, exit plan **A** (below) |
+| Strategy | Order block / smart-money (retired) | Daily 55-day Donchian breakout, exit plan **B** since 2026-11-10 (trades opened before keep A) |
 | New entries | **Off** (`ENTRY_SYMBOLS: "NONE"` in its bot.yml) | On |
 | Mode | DRY_RUN | DRY_RUN |
 | Risk per trade | 2% | **2%** (set in this repo's `bot.yml`) |
@@ -81,7 +81,7 @@ What the exit tests show:
   fewer trades, losers held too long, funding adds up (C, D).
 - D earns the same per trade as A (+0.16R) but takes ~1/3 as many trades; most of its profit
   was in 2024; it has the smallest drawdown besides B 1h.
-- **The bot still runs A. No decision yet on switching the exit plan.**
+- **Decided 2026-11-10 (after section 4): switched to B at 2% risk.**
 
 ## 4. Money management (`research_mm.py`, "Money management research" workflow), 2026-11-10
 
@@ -119,7 +119,7 @@ Conclusions: risk caps, the drawdown brake, pyramiding and non-crypto symbols al
 worse -> rejected. B beats A on return per unit of drawdown at every risk level, and at the
 real $157 size it beats A outright (minimum order sizes hurt A's wider trades). Caveat: B made
 most of its money in the 1st half (to Aug 2025), A in the 2nd half.
-Decision candidate: **exit plan B at 2% risk, crypto only, no caps/brake/pyramiding.**
+**Decided and switched 2026-11-10: exit plan B at 2% risk, crypto only, no caps/brake/pyramiding.** The bot's exit code was checked against the backtest's plan B: identical fills on 300 random trades.
 
 ## How to rerun
 

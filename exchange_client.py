@@ -158,6 +158,17 @@ class ExchangeClient:
             self.exchange.create_order(symbol, "TAKE_PROFIT_MARKET", opposite, amount, None, tp_params)
         return order
 
+    def place_take_profit(self, symbol: str, side: str, amount: float, price: float, position_side: str):
+        """Resting reduce-only TAKE_PROFIT_MARKET for PART of a position
+        (exit plan B's TP1/TP2). `side` is the closing side. Returns None
+        when the amount rounds to zero at the exchange's step size.
+        UNVERIFIED against live BingX data, like the rest of this file."""
+        amount = self.amount_to_precision(symbol, amount)
+        if amount <= 0:
+            return None
+        params = {"positionSide": position_side, "stopPrice": price, "reduceOnly": True}
+        return self.exchange.create_order(symbol, "TAKE_PROFIT_MARKET", side, amount, None, params)
+
     def close_partial_position(self, symbol: str, side: str, amount: float, position_side: str):
         """Reduce-only market order closing PART of an open position --
         used for the partial take-profit (see risk_manager.py). `side` is

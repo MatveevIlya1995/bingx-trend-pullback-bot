@@ -28,6 +28,9 @@ How a trade gets taken (defaults = the tested rule)
 
 Stops and exits
 ---------------
+Since 2026-11-10 new trades use exit plan B (EXIT_PLAN=structure, see
+structure_step at the bottom of this file). The description below is
+exit plan A (EXIT_PLAN=channel), kept for trades opened before that.
 - Initial stop: STOP_ATR_MULT (2) x ATR(ATR_PERIOD=20) beyond the entry.
 - Trailing stop, moved after every closed daily candle and never
   backwards: the tighter of the EXIT_LOOKBACK (20)-day channel (lowest
@@ -179,3 +182,123 @@ def build_trend_entry(
         "trail_distance": trail_atr_mult * a,
         "entry_candle_ts": entry_df["ts"].iloc[-1].isoformat(),
     }
+
+
+# --------------------------------------------------------------------------
+# Exit plan B ("structure"): chosen 2026-11-10 after research_mm.py
+# (RESEARCH_NOTES.md section 4). R = the initial stop distance.
+#   TP1 at 3R closes 1/3, TP2 at 5R closes 1/3, the last 1/3 runs.
+#   Structure is read on closed 1h candles (fractal swings, FRACTAL_N
+#   candles each side, confirmed FRACTAL_N candles later; only swings formed
+#   after the entry hour count). First 1h BOS in the trade's direction (a
+#   close beyond the last swing high for a long): stop to the entry. Every
+#   later BOS: stop to the low the breaking move started from (lowest low
+#   since the broken swing high), never behind the entry. The runner ends at
+#   the first CHoCH against the trade = that trailed stop being hit.
+#   Within one candle the stop counts before a target, unless the candle
+#   opens beyond the target (same as the backtest).
+# --------------------------------------------------------------------------
+def structure_targets(entry: float, stop: float, qty: float, tp1_r: float = 3.0, tp2_r: float = 5.0,
+                      tp1_fraction: float = 1 / 3, tp2_fraction: float = 1 / 3) -> list:
+    """The two partial take-profits of a new trade: [{label, price, qty}]."""
+    risk = abs(entry - stop)
+    d = 1 if entry > stop else -1
+    return [
+        {"label": f"TP1 {tp1_r:g}R", "price": entry + d * tp1_r * risk, "qty": qty * tp1_fraction},
+        {"label": f"TP2 {tp2_r:g}R", "price": entry + d * tp2_r * risk, "qty": qty * tp2_fraction},
+    ]
+
+
+def _fractals(high, low, n):
+    sh = np.zeros(len(high), bool)
+    sl = np.zeros(len(high), bool)
+    if len(high) > 2 * n:
+        w = np.lib.stride_tricks.sliding_window_view
+        sh[n:len(high) - n] = w(high, 2 * n + 1).argmax(axis=1) == n
+        sl[n:len(low) - n] = w(low, 2 * n + 1).argmin(axis=1) == n
+    return sh, sl
+
+
+def structure_step(trade: dict, h1: pd.DataFrame, fractal_n: int = 2, simulate_fills: bool = True):
+    """Walks the trade through every CLOSED 1h candle it hasn't seen yet
+    (h1: ts/open/high/low/close, oldest first). Updates trade in place:
+    stop_loss, tps (still open targets), qty, ref_swing, bos_count,
+    last_structure_ts. Returns (events, done) where events is a list of
+    (reason, qty, price) fills -- only when simulate_fills (paper trades;
+    live fills happen on the exchange)."""
+    if h1 is None or h1.empty:
+        return [], False
+    is_long = trade["position_side"].upper() == "LONG"
+    side = 1 if is_long else -1
+    ts = pd.to_datetime(h1["ts"]).values
+    o, hi, lo, c = (h1[k].values.astype(float) for k in ("open", "high", "low", "close"))
+    sh, sl = _fractals(hi, lo, fractal_n)
+    start = _naive(trade["structure_from_ts"])
+    last_seen = _naive(trade["last_structure_ts"]) if trade.get("last_structure_ts") else None
+    entry = float(trade["entry_price"])
+    events, done = [], False
+    for i in range(len(ts)):
+        if ts[i] < start or (last_seen is not None and ts[i] <= last_seen):
+            continue
+        stop = float(trade["stop_loss"])
+        tps = trade.get("tps") or []
+        if simulate_fills:
+            stop_hit = (lo[i] <= stop) if is_long else (hi[i] >= stop)
+            gap_tp = bool(tps) and ((o[i] >= tps[0]["price"]) if is_long else (o[i] <= tps[0]["price"]))
+            if stop_hit and not gap_tp:
+                px = min(o[i], stop) if is_long else max(o[i], stop)
+                events.append((_stop_reason(trade), trade["qty"], px))
+                trade["qty"] = 0.0
+                done = True
+            else:
+                while tps and ((hi[i] >= tps[0]["price"]) if is_long else (lo[i] <= tps[0]["price"])):
+                    tp = tps.pop(0)
+                    q = min(tp["qty"], trade["qty"])
+                    px = max(o[i], tp["price"]) if is_long else min(o[i], tp["price"])
+                    events.append((tp["label"], q, px))
+                    trade["qty"] -= q
+                trade["tps"] = tps
+                if trade["qty"] <= 1e-12:
+                    done = True
+                elif stop_hit:
+                    events.append((_stop_reason(trade), trade["qty"], stop))
+                    trade["qty"] = 0.0
+                    done = True
+        trade["last_structure_ts"] = pd.Timestamp(ts[i]).isoformat()
+        if done:
+            break
+        # --- after the close: structure and the stop for the next candle
+        j = i - fractal_n
+        if j >= fractal_n and ts[j] >= start:
+            if is_long and sh[j]:
+                trade["ref_swing"] = {"ts": pd.Timestamp(ts[j]).isoformat(), "price": float(hi[j]), "broken": False}
+            if not is_long and sl[j]:
+                trade["ref_swing"] = {"ts": pd.Timestamp(ts[j]).isoformat(), "price": float(lo[j]), "broken": False}
+        ref = trade.get("ref_swing")
+        if ref and not ref["broken"] and ((c[i] > ref["price"]) if is_long else (c[i] < ref["price"])):
+            ref["broken"] = True
+            trade["bos_count"] = trade.get("bos_count", 0) + 1
+            if trade["bos_count"] == 1:
+                new = entry
+            else:
+                k0 = int(np.searchsorted(ts, _naive(ref["ts"])))
+                origin = lo[k0:i + 1].min() if is_long else hi[k0:i + 1].max()
+                new = max(origin, entry) if is_long else min(origin, entry)
+            trade["stop_loss"] = max(stop, new) if is_long else min(stop, new)
+    return events, done
+
+
+def _naive(t):
+    """ISO string / Timestamp -> naive-UTC numpy datetime64 (candle ts are naive UTC)."""
+    t = pd.Timestamp(t)
+    if t.tzinfo is not None:
+        t = t.tz_convert("UTC").tz_localize(None)
+    return np.datetime64(t, "ns")
+
+
+def _stop_reason(trade):
+    if trade.get("bos_count", 0) == 0:
+        return "initial stop hit"
+    if abs(float(trade["stop_loss"]) - float(trade["entry_price"])) < 1e-12:
+        return "breakeven stop hit (after 1h BOS)"
+    return "structure stop hit (1h CHoCH)"

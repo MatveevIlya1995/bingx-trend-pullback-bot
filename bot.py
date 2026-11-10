@@ -7,23 +7,27 @@ at 00:00 UTC and the first run after it looks for entries.
 Each run:
 1. reads account equity and open positions
 2. reconciles LIVE trades that have closed on the exchange (EXIT rows)
-3. manages every open trade (LIVE or DRY_RUN paper) with its symbol's
-   last closed daily candle: stop check, then the trailing stop moves to
-   the tighter of the 20-day exit channel and close - 2 ATR
-   (see strategy.trail_levels / risk_manager.py). Paper trades exit at
-   their stop.
+3. manages every open trade (LIVE or DRY_RUN paper):
+   - exit plan B ("structure", EXIT_PLAN default since 2026-11-10): on
+     closed 1h candles, TP1 at 3R closes 1/3, TP2 at 5R closes 1/3, stop to
+     entry at the first 1h BOS, then to the last swing at every BOS, the
+     last 1/3 runs until the 1h CHoCH (strategy.structure_step)
+   - exit plan A ("channel", trades opened before the switch): with the
+     last closed daily candle, the trailing stop moves to the tighter of
+     the 20-day exit channel and close - 2 ATR (strategy.trail_levels)
 4. checks the daily-loss circuit breaker
 5. scans the watched symbols for new entries (see strategy.py): a close
    beyond the 55-day Donchian channel; optional daily EMA trend filter
    (TREND_FILTER) and momentum filter (MOMENTUM_FILTER), both off by
    default. When more signals fire than free slots, the strongest
    momentum in the trade's direction goes first (when the filter is on).
-6. builds entry / ATR stop (no take-profit)
+6. builds entry / ATR stop (+ TP1/TP2 with exit plan B)
 7. sizes so a stop-out risks RISK_PCT_PER_TRADE of equity
    (risk_manager.position_size)
 8. DRY_RUN=true (default): journals the trade and tracks it on paper
 9. DRY_RUN=false: sets leverage, sends a market entry plus a reduce-only
-   stop; the stop is then trailed on later runs
+   stop (and, plan B, reduce-only TP1/TP2 orders); the stop is then moved
+   on later runs
 """
 import datetime
 import sys
@@ -39,6 +43,7 @@ from strategy import (
     momentum_return,
     build_trend_entry,
     trail_levels,
+    structure_targets,
 )
 from risk_manager import RiskManager
 
@@ -48,7 +53,7 @@ def _fetch(client, cfg, symbol, timeframe, limit):
     return drop_incomplete_last_candle(ohlcv_to_df(raw), timeframe)
 
 
-def _manage_open_trades(client, risk, cfg, symbol):
+def _manage_open_trades(client, risk, cfg, symbol, live_sizes=None):
     """Uses the symbol's last CLOSED entry-timeframe candle to resolve /
     trail its open trades. Returns the dataframe for reuse, or None on
     fetch failure."""
@@ -67,6 +72,17 @@ def _manage_open_trades(client, risk, cfg, symbol):
     if closed:
         print(f"[bot] {symbol}: closed {len(closed)} DRY_RUN paper trade(s), logged EXIT row(s).")
     risk.trail_live_stops(symbol, high=high, low=low, exchange_client=client, candle_ts=ts, levels=levels)
+
+    if risk.has_structure_trade(symbol):
+        try:
+            h1 = _fetch(client, cfg, symbol, cfg.structure_timeframe, cfg.structure_candle_limit)
+        except Exception as e:
+            print(f"[bot] {symbol}: could not fetch {cfg.structure_timeframe} candles for the structure exit ({e}).")
+            h1 = None
+        if h1 is not None and not h1.empty:
+            closed = risk.manage_structure_trades(symbol, h1, exchange_client=client, live_sizes=live_sizes)
+            if closed:
+                print(f"[bot] {symbol}: closed {len(closed)} DRY_RUN paper trade(s) (structure exit).")
     return df
 
 
@@ -159,8 +175,11 @@ def _find_candidate(client, cfg, symbol, df_cache, daily_cache, scores):
         + (f"daily close vs EMA{cfg.trend_ema_period} = {trend} | " if cfg.trend_filter else "")
         + f"{cfg.entry_timeframe} close {entry['entry']:.6g} broke the {cfg.breakout_lookback}-candle "
         f"{'high' if trend == 'bullish' else 'low'} | ATR{cfg.atr_period}={entry['atr']:.6g}, "
-        f"stop {cfg.stop_atr_mult:g} ATR, trail: {cfg.exit_lookback}-candle channel or close - "
-        f"{cfg.trail_atr_mult:g} ATR, no take-profit"
+        f"stop {cfg.stop_atr_mult:g} ATR, "
+        + (f"exit B: TP1 {cfg.tp1_r:g}R ({cfg.tp1_fraction:.0%}), TP2 {cfg.tp2_r:g}R ({cfg.tp2_fraction:.0%}), "
+           f"stop to entry at the 1st {cfg.structure_timeframe} BOS then to the last swing, runner to the CHoCH"
+           if cfg.exit_plan == "structure" else
+           f"trail: {cfg.exit_lookback}-candle channel or close - {cfg.trail_atr_mult:g} ATR, no take-profit")
         + (f" | {mom_desc}" if mom_desc else "")
     )
     strength = scores.get(symbol, 0.0) * (1 if trend == "bullish" else -1)
@@ -199,15 +218,26 @@ def _try_open_candidate(client, risk, cfg, candidate, equity):
         "stop_loss": round(entry["stop_loss"], 6), "take_profit": "",
         "equity": round(equity, 2), "trigger": trigger_desc,
     }
+    structure = cfg.exit_plan == "structure"
+    tps = structure_targets(entry["entry"], entry["stop_loss"], qty, cfg.tp1_r, cfg.tp2_r,
+                            cfg.tp1_fraction, cfg.tp2_fraction) if structure else []
+    if structure:
+        risk_row["take_profit"] = round(tps[0]["price"], 6)
+        nxt = (datetime.datetime.now(datetime.timezone.utc).replace(minute=0, second=0, microsecond=0)
+               + datetime.timedelta(hours=1))
     tracked = {
         "trade_id": trade_id, "entry_time_utc": now_iso, "mode": mode, "symbol": symbol,
         "side": entry["side"].upper(), "position_side": entry["position_side"],
         "qty": round(qty, 6), "entry_price": round(entry["entry"], 6),
         "stop_loss": round(entry["stop_loss"], 6), "take_profit": None,
         "trail_distance": entry["trail_distance"], "entry_candle_ts": entry["entry_candle_ts"],
-        "exit_mode": "channel" if cfg.exit_lookback > 0 else "chandelier",
+        "exit_mode": "structure" if structure else ("channel" if cfg.exit_lookback > 0 else "chandelier"),
         "trigger": trigger_desc,
     }
+    if structure:
+        # 1h candles from the first full hour after the entry are managed
+        tracked.update({"tps": tps, "structure_from_ts": nxt.replace(tzinfo=None).isoformat(),
+                        "bos_count": 0, "ref_swing": None, "last_structure_ts": None})
 
     if cfg.dry_run:
         risk.log_trade(risk_row)
@@ -221,6 +251,18 @@ def _try_open_candidate(client, risk, cfg, candidate, equity):
         stop_loss_price=entry["stop_loss"], take_profit_price=None,
         position_side=entry["position_side"],
     )
+    if structure:
+        close_side = "sell" if entry["side"] == "buy" else "buy"
+        placed = []
+        for tp in tps:
+            try:
+                if client.place_take_profit(symbol, close_side, tp["qty"], tp["price"], entry["position_side"]):
+                    placed.append(tp)
+                else:
+                    print(f"[bot] {symbol}: {tp['label']} size rounds to zero -- no order, that part runs.")
+            except Exception as e:
+                print(f"[bot] {symbol}: could not place {tp['label']} ({e}) -- that part runs on the stop.")
+        tracked["tps"] = placed
     risk.log_trade(risk_row)
     risk.track_open_trade(tracked)
     print(f"[bot] {symbol}: order submitted with a reduce-only stop, logged.")
@@ -250,9 +292,17 @@ def run_once():
     if closed:
         print(f"[bot] Reconciled {len(closed)} closed trade(s), logged EXIT row(s).")
 
+    live_sizes = {}
+    for p in open_positions:
+        side = (p.get("side") or p.get("positionSide") or "").upper()
+        try:
+            live_sizes[(p.get("symbol"), side)] = float(p.get("contracts") or 0)
+        except (TypeError, ValueError):
+            pass
+
     df_cache, daily_cache = {}, {}
     for symbol in sorted(risk.occupied_symbols()):
-        df_cache[symbol] = _manage_open_trades(client, risk, cfg, symbol)
+        df_cache[symbol] = _manage_open_trades(client, risk, cfg, symbol, live_sizes)
 
     if risk.circuit_breaker_tripped(equity):
         print("[bot] Daily loss circuit breaker is tripped. No new entries today.")
