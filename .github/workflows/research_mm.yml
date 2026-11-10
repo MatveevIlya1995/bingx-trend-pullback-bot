@@ -28,7 +28,7 @@ jobs:
           python-version: "3.11"
       - run: pip install -r requirements.txt
       - name: Run the research
-        run: python3 research_mm.py --since "${{ inputs.since || '2021-01-01' }}"
+        run: python3 research_mm.py --since "${{ inputs.since || '2021-01-01' }}" --small-only
       - name: Post the report as run annotations
         if: always()
         run: |

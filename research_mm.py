@@ -356,13 +356,15 @@ def main():
     ap.add_argument("--since", default="2021-01-01")
     ap.add_argument("--out", default="research_results")
     ap.add_argument("--cache", default="research_cache")
+    ap.add_argument("--small-only", action="store_true", help="only the $157 account section")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     os.makedirs(args.cache, exist_ok=True)
     R.TF_MS["1h"] = 3_600_000
     ex = R.ccxt.bingx({"enableRateLimit": True, "options": {"defaultType": "swap"}})
     since_ms = int(pd.Timestamp(args.since).value // 1_000_000)
-    extra, vol = discover_noncrypto(ex)
+    extra, vol = ([], {}) if args.small_only else discover_noncrypto(ex)
+    ex.load_markets()
     data = load(ex, CRYPTO + extra, since_ms, args.cache)
     crypto = [s for s in CRYPTO if s in data]
     extra = [s for s in extra if s in data]
@@ -401,14 +403,15 @@ def main():
              "in one direction. brake = risk halved while equity is >10% below its peak, until a new peak. "
              "pyramiding = add one more unit (same size as the first) at +1 ATR and +2 ATR, whole stop raised "
              "to 2 ATR behind the newest unit.", "", "## Risk, exits, caps, brake, pyramiding", ""] + HEAD
-    for name, cfg in S:
+    for name, cfg in ([] if args.small_only else S):
         t0 = time.time()
         eq, dd, tr, cv, sk = simulate(P, grid, {**base, **cfg})
         lines.append(row(name, 1000, eq, dd, tr, cv, start, end, split, sk))
         print(lines[-1], f"({time.time()-t0:.0f}s)", flush=True)
 
     # ---- non-crypto symbols
-    lines += ["", "## Adding non-crypto perps (metals, commodities, indices, forex)", ""]
+    if not args.small_only:
+        lines += ["", "## Adding non-crypto perps (metals, commodities, indices, forex)", ""]
     if extra:
         x0 = max(min(data[s][0].index[0] for s in extra) + pd.Timedelta(days=60), start)
         lines.append("Symbols (1h history start): " + ", ".join(
@@ -435,15 +438,19 @@ def main():
                     by.setdefault("non-crypto" if t["sym"] in extra else "crypto", []).append(t["pnl"])
                 lines.append("|  ↳ P/L split | " + "; ".join(f"{k}: {len(v)} trades, ${sum(v):+.0f}" for k, v in by.items())
                              + " | | | | | | | | | | |")
-    else:
+    elif not args.small_only:
         lines.append("No non-crypto perps with enough history were found.")
 
     # ---- small real account
     lines += ["", "## Real account size ($157) with BingX minimum order sizes", ""] + HEAD
-    for name, cfg in [("A 2% (bot now), $157", {"plan": "A", "risk": 0.02}),
-                      ("A 1.5% + caps + brake, $157", {"plan": "A", "risk": 0.015, **caps, **brk}),
-                      ("B 1.5% + caps + brake, $157", {"plan": "B", "risk": 0.015, **caps, **brk}),
-                      ("A 1.5% + pyr + caps + brake, $157", {"plan": "A", "risk": 0.015, **pyr, **caps, **brk})]:
+    small = [("A 1.5%, $157", {"plan": "A", "risk": 0.015}),
+             ("A 2% (bot now), $157", {"plan": "A", "risk": 0.02}),
+             ("B 1.5%, $157", {"plan": "B", "risk": 0.015}),
+             ("B 2%, $157", {"plan": "B", "risk": 0.02})]
+    if not args.small_only:
+        small += [("A 1.5% + caps + brake, $157", {"plan": "A", "risk": 0.015, **caps, **brk}),
+                  ("B 1.5% + caps + brake, $157", {"plan": "B", "risk": 0.015, **caps, **brk})]
+    for name, cfg in small:
         eq, dd, tr, cv, sk = simulate(P, grid, {**base, **cfg, "min_orders": True}, ex=ex, equity0=157.0)
         lines.append(row(name, 157, eq, dd, tr, cv, start, end, split, sk))
         print(lines[-1], flush=True)
