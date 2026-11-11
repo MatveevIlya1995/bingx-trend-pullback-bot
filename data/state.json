@@ -45,6 +45,114 @@
       "risk_per_unit": 193.285167,
       "best_price": 2004.18,
       "last_managed_candle_ts": "2026-11-10T00:00:00"
+    },
+    {
+      "trade_id": "6b3ee63a35ef",
+      "entry_time_utc": "2026-11-11T20:15:47.114773+00:00",
+      "mode": "DRY_RUN",
+      "symbol": "XRP/USDT:USDT",
+      "side": "SELL",
+      "position_side": "SHORT",
+      "qty": 25.281685,
+      "entry_price": 1.0562,
+      "stop_loss": 1.17761,
+      "take_profit": null,
+      "trail_distance": 0.12140962924251032,
+      "entry_candle_ts": "2026-11-10T00:00:00",
+      "exit_mode": "structure",
+      "trigger": "trend following bearish: 1d close 1.0562 broke the 55-candle low | ATR20=0.0607048, stop 2 ATR, exit B: TP1 3R (33%), TP2 5R (33%), stop to entry at the 1st 1h BOS then to the last swing, runner to the CHoCH",
+      "tps": [
+        {
+          "label": "TP1 3R",
+          "price": 0.6919711122724688,
+          "qty": 8.427228326535582
+        },
+        {
+          "label": "TP2 5R",
+          "price": 0.44915185378744793,
+          "qty": 8.427228326535582
+        }
+      ],
+      "structure_from_ts": "2026-11-11T21:00:00",
+      "bos_count": 0,
+      "ref_swing": null,
+      "last_structure_ts": null,
+      "initial_qty": 25.281685,
+      "initial_stop": 1.17761,
+      "risk_per_unit": 0.12141000000000002,
+      "best_price": 1.0562
+    },
+    {
+      "trade_id": "9dc0ad57d767",
+      "entry_time_utc": "2026-11-11T20:15:47.115405+00:00",
+      "mode": "DRY_RUN",
+      "symbol": "SOL/USDT:USDT",
+      "side": "SELL",
+      "position_side": "SHORT",
+      "qty": 0.338258,
+      "entry_price": 83.313,
+      "stop_loss": 92.387268,
+      "take_profit": null,
+      "trail_distance": 9.074268392713757,
+      "entry_candle_ts": "2026-11-10T00:00:00",
+      "exit_mode": "structure",
+      "trigger": "trend following bearish: 1d close 83.313 broke the 55-candle low | ATR20=4.53713, stop 2 ATR, exit B: TP1 3R (33%), TP2 5R (33%), stop to entry at the 1st 1h BOS then to the last swing, runner to the CHoCH",
+      "tps": [
+        {
+          "label": "TP1 3R",
+          "price": 56.09019482185872,
+          "qty": 0.11275252421321463
+        },
+        {
+          "label": "TP2 5R",
+          "price": 37.94165803643119,
+          "qty": 0.11275252421321463
+        }
+      ],
+      "structure_from_ts": "2026-11-11T21:00:00",
+      "bos_count": 0,
+      "ref_swing": null,
+      "last_structure_ts": null,
+      "initial_qty": 0.338258,
+      "initial_stop": 92.387268,
+      "risk_per_unit": 9.074268000000004,
+      "best_price": 83.313
+    },
+    {
+      "trade_id": "2edd5c583353",
+      "entry_time_utc": "2026-11-11T20:15:47.115972+00:00",
+      "mode": "DRY_RUN",
+      "symbol": "HYPE/USDT:USDT",
+      "side": "SELL",
+      "position_side": "SHORT",
+      "qty": 0.321262,
+      "entry_price": 72.272,
+      "stop_loss": 81.826311,
+      "take_profit": null,
+      "trail_distance": 9.554310795611613,
+      "entry_candle_ts": "2026-11-10T00:00:00",
+      "exit_mode": "structure",
+      "trigger": "trend following bearish: 1d close 72.272 broke the 55-candle low | ATR20=4.77716, stop 2 ATR, exit B: TP1 3R (33%), TP2 5R (33%), stop to entry at the 1st 1h BOS then to the last swing, runner to the CHoCH",
+      "tps": [
+        {
+          "label": "TP1 3R",
+          "price": 43.609067613165166,
+          "qty": 0.10708743817885931
+        },
+        {
+          "label": "TP2 5R",
+          "price": 24.50044602194194,
+          "qty": 0.10708743817885931
+        }
+      ],
+      "structure_from_ts": "2026-11-11T21:00:00",
+      "bos_count": 0,
+      "ref_swing": null,
+      "last_structure_ts": null,
+      "initial_qty": 0.321262,
+      "initial_stop": 81.826311,
+      "risk_per_unit": 9.554310999999998,
+      "best_price": 72.272
     }
   ],
   "dry_run_signaled": {},
