@@ -80,7 +80,7 @@
         "price": 80.42,
         "broken": false
       },
-      "last_structure_ts": "2026-11-12T21:00:00",
+      "last_structure_ts": "2026-11-12T22:00:00",
       "initial_qty": 0.338258,
       "initial_stop": 92.387268,
       "risk_per_unit": 9.074268000000004,
@@ -120,7 +120,7 @@
         "price": 931.01,
         "broken": false
       },
-      "last_structure_ts": "2026-11-12T21:00:00",
+      "last_structure_ts": "2026-11-12T22:00:00",
       "initial_qty": 0.012925,
       "initial_stop": 1200.69595,
       "risk_per_unit": 237.48595,
