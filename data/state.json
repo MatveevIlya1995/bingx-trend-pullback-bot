@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-12",
+  "date": "2026-11-13",
   "day_start_equity": 153.472,
   "realized_pnl_today": 0.0,
   "open_trades": [],
@@ -13,7 +13,7 @@
       "position_side": "SHORT",
       "qty": 0.000694,
       "entry_price": 74817.6,
-      "stop_loss": 78294.53549452884,
+      "stop_loss": 75978.69821799437,
       "take_profit": null,
       "trail_distance": 4526.6617870016735,
       "entry_candle_ts": "2026-11-08T00:00:00",
@@ -22,8 +22,8 @@
       "initial_qty": 0.000694,
       "initial_stop": 79344.261787,
       "risk_per_unit": 4526.66178699999,
-      "best_price": 72705.9,
-      "last_managed_candle_ts": "2026-11-11T00:00:00"
+      "best_price": 71095.1,
+      "last_managed_candle_ts": "2026-11-12T00:00:00"
     },
     {
       "trade_id": "70c7cda7deb1",
@@ -34,7 +34,7 @@
       "position_side": "SHORT",
       "qty": 0.016245,
       "entry_price": 2126.45,
-      "stop_loss": 2247.1167931596033,
+      "stop_loss": 2209.599913574414,
       "take_profit": null,
       "trail_distance": 193.28516732340478,
       "entry_candle_ts": "2026-11-08T00:00:00",
@@ -43,8 +43,8 @@
       "initial_qty": 0.016245,
       "initial_stop": 2319.735167,
       "risk_per_unit": 193.285167,
-      "best_price": 2004.18,
-      "last_managed_candle_ts": "2026-11-11T00:00:00"
+      "best_price": 1982.89,
+      "last_managed_candle_ts": "2026-11-12T00:00:00"
     },
     {
       "trade_id": "9dc0ad57d767",
@@ -76,11 +76,11 @@
       "structure_from_ts": "2026-11-11T21:00:00",
       "bos_count": 1,
       "ref_swing": {
-        "ts": "2026-11-12T14:00:00",
-        "price": 80.42,
+        "ts": "2026-11-12T21:00:00",
+        "price": 81.084,
         "broken": false
       },
-      "last_structure_ts": "2026-11-12T22:00:00",
+      "last_structure_ts": "2026-11-12T23:00:00",
       "initial_qty": 0.338258,
       "initial_stop": 92.387268,
       "risk_per_unit": 9.074268000000004,
@@ -120,7 +120,7 @@
         "price": 931.01,
         "broken": false
       },
-      "last_structure_ts": "2026-11-12T22:00:00",
+      "last_structure_ts": "2026-11-12T23:00:00",
       "initial_qty": 0.012925,
       "initial_stop": 1200.69595,
       "risk_per_unit": 237.48595,
@@ -156,7 +156,7 @@
       "structure_from_ts": "2026-11-12T23:00:00",
       "bos_count": 0,
       "ref_swing": null,
-      "last_structure_ts": null,
+      "last_structure_ts": "2026-11-12T23:00:00",
       "initial_qty": 2.596278,
       "initial_stop": 7.411246,
       "risk_per_unit": 1.1822460000000001,
