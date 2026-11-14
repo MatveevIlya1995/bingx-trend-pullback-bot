@@ -80,7 +80,7 @@
         "price": 5.477,
         "broken": true
       },
-      "last_structure_ts": "2026-11-14T19:00:00",
+      "last_structure_ts": "2026-11-14T20:00:00",
       "initial_qty": 2.596278,
       "initial_stop": 7.411246,
       "risk_per_unit": 1.1822460000000001,
@@ -95,7 +95,7 @@
       "position_side": "SHORT",
       "qty": 0.067751,
       "entry_price": 656.66,
-      "stop_loss": 620.78,
+      "stop_loss": 598.65,
       "take_profit": null,
       "trail_distance": 45.30458989285799,
       "entry_candle_ts": "2026-11-12T00:00:00",
@@ -114,13 +114,13 @@
         }
       ],
       "structure_from_ts": "2026-11-13T13:00:00",
-      "bos_count": 2,
+      "bos_count": 3,
       "ref_swing": {
         "ts": "2026-11-14T16:00:00",
         "price": 582.91,
-        "broken": false
+        "broken": true
       },
-      "last_structure_ts": "2026-11-14T19:00:00",
+      "last_structure_ts": "2026-11-14T20:00:00",
       "initial_qty": 0.067751,
       "initial_stop": 701.96459,
       "risk_per_unit": 45.304590000000076,
@@ -135,7 +135,7 @@
       "position_side": "SHORT",
       "qty": 358.43023,
       "entry_price": 0.06371,
-      "stop_loss": 0.06051,
+      "stop_loss": 0.05883,
       "take_profit": null,
       "trail_distance": 0.008563563404010838,
       "entry_candle_ts": "2026-11-12T00:00:00",
@@ -154,13 +154,13 @@
         }
       ],
       "structure_from_ts": "2026-11-13T15:00:00",
-      "bos_count": 2,
+      "bos_count": 3,
       "ref_swing": {
         "ts": "2026-11-14T16:00:00",
         "price": 0.05737,
-        "broken": false
+        "broken": true
       },
-      "last_structure_ts": "2026-11-14T19:00:00",
+      "last_structure_ts": "2026-11-14T20:00:00",
       "initial_qty": 358.43023,
       "initial_stop": 0.072274,
       "risk_per_unit": 0.008564000000000002,
