@@ -76,11 +76,11 @@
       "structure_from_ts": "2026-11-12T23:00:00",
       "bos_count": 4,
       "ref_swing": {
-        "ts": "2026-11-15T08:00:00",
-        "price": 4.928,
+        "ts": "2026-11-15T14:00:00",
+        "price": 5.074,
         "broken": false
       },
-      "last_structure_ts": "2026-11-15T15:00:00",
+      "last_structure_ts": "2026-11-15T16:00:00",
       "initial_qty": 2.596278,
       "initial_stop": 7.411246,
       "risk_per_unit": 1.1822460000000001,
@@ -115,8 +115,12 @@
       ],
       "structure_from_ts": "2026-11-15T11:00:00",
       "bos_count": 0,
-      "ref_swing": null,
-      "last_structure_ts": "2026-11-15T15:00:00",
+      "ref_swing": {
+        "ts": "2026-11-15T14:00:00",
+        "price": 585.98,
+        "broken": false
+      },
+      "last_structure_ts": "2026-11-15T16:00:00",
       "initial_qty": 0.060718,
       "initial_stop": 632.082054,
       "risk_per_unit": 50.552054,
@@ -152,7 +156,7 @@
       "structure_from_ts": "2026-11-15T13:00:00",
       "bos_count": 0,
       "ref_swing": null,
-      "last_structure_ts": "2026-11-15T15:00:00",
+      "last_structure_ts": "2026-11-15T16:00:00",
       "initial_qty": 25.030114,
       "initial_stop": 1.03583,
       "risk_per_unit": 0.12263000000000002,
