@@ -55,7 +55,7 @@
       "position_side": "SHORT",
       "qty": 2.596278,
       "entry_price": 6.229,
-      "stop_loss": 5.556,
+      "stop_loss": 5.178,
       "take_profit": null,
       "trail_distance": 1.1822463582972178,
       "entry_candle_ts": "2026-11-11T00:00:00",
@@ -74,13 +74,13 @@
         }
       ],
       "structure_from_ts": "2026-11-12T23:00:00",
-      "bos_count": 4,
+      "bos_count": 5,
       "ref_swing": {
         "ts": "2026-11-16T09:00:00",
         "price": 5.1,
-        "broken": false
+        "broken": true
       },
-      "last_structure_ts": "2026-11-16T11:00:00",
+      "last_structure_ts": "2026-11-16T12:00:00",
       "initial_qty": 2.596278,
       "initial_stop": 7.411246,
       "risk_per_unit": 1.1822460000000001,
