@@ -1,6 +1,6 @@
 {
-  "date": "2026-11-21",
-  "day_start_equity": 163.2391,
+  "date": "2026-11-22",
+  "day_start_equity": 159.1874,
   "realized_pnl_today": 0.0,
   "open_trades": [],
   "open_dry_run_trades": [
@@ -22,8 +22,8 @@
       "initial_qty": 0.000694,
       "initial_stop": 79344.261787,
       "risk_per_unit": 4526.66178699999,
-      "best_price": 57726.1,
-      "last_managed_candle_ts": "2026-11-20T00:00:00"
+      "best_price": 55172.3,
+      "last_managed_candle_ts": "2026-11-21T00:00:00"
     },
     {
       "trade_id": "70c7cda7deb1",
@@ -43,8 +43,8 @@
       "initial_qty": 0.016245,
       "initial_stop": 2319.735167,
       "risk_per_unit": 193.285167,
-      "best_price": 1580.32,
-      "last_managed_candle_ts": "2026-11-20T00:00:00"
+      "best_price": 1536.64,
+      "last_managed_candle_ts": "2026-11-21T00:00:00"
     },
     {
       "trade_id": "08b37651435b",
@@ -80,7 +80,7 @@
         "price": 39.71,
         "broken": true
       },
-      "last_structure_ts": "2026-11-21T22:00:00",
+      "last_structure_ts": "2026-11-21T23:00:00",
       "initial_qty": 0.558119,
       "initial_stop": 47.826413,
       "risk_per_unit": 5.546413000000001,
@@ -120,7 +120,7 @@
         "price": 503.82,
         "broken": false
       },
-      "last_structure_ts": "2026-11-21T22:00:00",
+      "last_structure_ts": "2026-11-21T23:00:00",
       "initial_qty": 0.063439,
       "initial_stop": 592.073295,
       "risk_per_unit": 51.463295000000016,
@@ -135,7 +135,7 @@
       "position_side": "SHORT",
       "qty": 0.014232,
       "entry_price": 759.29,
-      "stop_loss": 983.001114,
+      "stop_loss": 759.29,
       "take_profit": null,
       "trail_distance": 223.71111375818688,
       "entry_candle_ts": "2026-11-20T00:00:00",
@@ -154,13 +154,13 @@
         }
       ],
       "structure_from_ts": "2026-11-21T15:00:00",
-      "bos_count": 0,
+      "bos_count": 1,
       "ref_swing": {
         "ts": "2026-11-21T16:00:00",
         "price": 779.86,
-        "broken": false
+        "broken": true
       },
-      "last_structure_ts": "2026-11-21T22:00:00",
+      "last_structure_ts": "2026-11-21T23:00:00",
       "initial_qty": 0.014232,
       "initial_stop": 983.001114,
       "risk_per_unit": 223.71111400000007,
