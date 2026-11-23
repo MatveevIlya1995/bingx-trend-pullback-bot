@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-22",
+  "date": "2026-11-23",
   "day_start_equity": 159.1874,
   "realized_pnl_today": 0.0,
   "open_trades": [],
@@ -23,7 +23,7 @@
       "initial_stop": 79344.261787,
       "risk_per_unit": 4526.66178699999,
       "best_price": 55172.3,
-      "last_managed_candle_ts": "2026-11-21T00:00:00"
+      "last_managed_candle_ts": "2026-11-22T00:00:00"
     },
     {
       "trade_id": "70c7cda7deb1",
@@ -44,7 +44,7 @@
       "initial_stop": 2319.735167,
       "risk_per_unit": 193.285167,
       "best_price": 1536.64,
-      "last_managed_candle_ts": "2026-11-21T00:00:00"
+      "last_managed_candle_ts": "2026-11-22T00:00:00"
     }
   ],
   "dry_run_signaled": {},
