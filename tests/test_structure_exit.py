@@ -138,3 +138,18 @@ def test_bot_opens_plan_b_trades_by_default(env, monkeypatch):
     assert abs(tr[0]["tps"][1]["qty"] - tr[0]["qty"] / 3) < 1e-6
     rows = list(csv.DictReader(open(env / "trades.csv")))
     assert rows[0]["event"] == "ENTRY" and rows[0]["take_profit"] and "exit B" in rows[0]["trigger"]
+
+
+def test_bos_under_water_does_not_move_stop_through_price():
+    # long from 100 that never gets back above the entry: a 1h BOS at ~98.5
+    # must not lift the stop to 100 (above the price) and close at a loss
+    h1 = _h1([100, 94, 97, 92, 98.5, 96, 99, 96.5])
+    t = _trade()
+    events, done = structure_step(t, h1)
+    assert events == [] and not done
+    assert t["stop_loss"] == 90.0 and t["bos_count"] == 0
+    # the mirror case for a short
+    h1s = _h1([100, 106, 103, 108, 101.5, 104, 101, 103.5])
+    ts_ = _trade(side="SHORT", stop=110.0)
+    events, done = structure_step(ts_, h1s)
+    assert events == [] and not done and ts_["stop_loss"] == 110.0

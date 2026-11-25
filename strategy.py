@@ -277,14 +277,20 @@ def structure_step(trade: dict, h1: pd.DataFrame, fractal_n: int = 2, simulate_f
         ref = trade.get("ref_swing")
         if ref and not ref["broken"] and ((c[i] > ref["price"]) if is_long else (c[i] < ref["price"])):
             ref["broken"] = True
-            trade["bos_count"] = trade.get("bos_count", 0) + 1
-            if trade["bos_count"] == 1:
+            if trade.get("bos_count", 0) == 0:
                 new = entry
             else:
                 k0 = int(np.searchsorted(ts, _naive(ref["ts"])))
                 origin = lo[k0:i + 1].min() if is_long else hi[k0:i + 1].max()
                 new = max(origin, entry) if is_long else min(origin, entry)
-            trade["stop_loss"] = max(stop, new) if is_long else min(stop, new)
+            # A BOS while the trade is still under water would put the stop
+            # on the wrong side of the price (a long's stop above the close),
+            # so the next candle "stops out" at a loss. Only move the stop
+            # when the close is already beyond it; otherwise this BOS doesn't
+            # count and the stop stays where it is.
+            if (c[i] > new) if is_long else (c[i] < new):
+                trade["bos_count"] = trade.get("bos_count", 0) + 1
+                trade["stop_loss"] = max(stop, new) if is_long else min(stop, new)
     return events, done
 
 

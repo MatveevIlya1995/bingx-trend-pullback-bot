@@ -147,6 +147,11 @@ def run_trade(plan, side, entry_i, stop0, h1, S, daily_trail):
                     seg = sll[ref[0]:k + 1] if side > 0 else shh[ref[0]:k + 1]
                     origin = seg.min() if side > 0 else seg.max()
                     new = max(origin, entry) if side > 0 else min(origin, entry)
+                if plan.endswith("fix") and not ((sc[k] > new) if side > 0 else (sc[k] < new)):
+                    # "B 1h fix" (what the bot runs): a BOS while the trade is
+                    # under water doesn't move the stop through the price
+                    bos_count -= 1
+                    continue
                 stop = max(stop, new) if side > 0 else min(stop, new)
     parts.append((remaining, c[-1]))   # still open at the end: mark at the last close
     return len(o) - 1, parts, entry, risk
@@ -182,14 +187,14 @@ def main():
     split = max(pd.Timestamp("2025-04-03"), start + (end - start) / 2) if start < pd.Timestamp("2025-04-03") else start + (end - start) / 2
 
     # candidate trades per plan
-    PLANS = ("A", "B 1h", "C", "D")
+    PLANS = ("A", "B 1h", "B 1h fix", "C", "D")
     cands = {p: [] for p in PLANS}
     for sym in d1:
         df = d1[sym]
         sig = R.donchian(df, 55, 20)
         hh = h1[sym]
         s1, s4 = structure(hh, "1h"), structure(hh, "4h")
-        structs = {"B 1h": s1, "B 4h": s4, "C 1h": s1, "C 4h": s4}
+        structs = {"B 1h": s1, "B 1h fix": s1, "B 4h": s4, "C 1h": s1, "C 4h": s4}
         idx = hh.index
         for day, row in sig.iterrows():
             nxt = day + pd.Timedelta(days=1)
@@ -219,7 +224,8 @@ def main():
              "B = TP1 3R (1/3), TP2 5R (1/3), stop to entry at the first BOS, then to the last swing at every BOS, runner until the CHoCH; structure read on 1h or 4h candles (built from the 1h data). "
              "C = TP1 3R (1/3), TP2 5R (1/3), stop moves ONLY at the targets: to the entry at TP1, to TP1's price at TP2; "
              "C = the last third waits at that stop; C 1h / C 4h = after TP2 the last third also trails to the last swing at every BOS (exit at the CHoCH). "
-             "D = TP1 3R (50%), TP2 5R (50%), stop to the entry after TP1, no trailing.", "",
+             "D = TP1 3R (50%), TP2 5R (50%), stop to the entry after TP1, no trailing. "
+             "B 1h fix = B 1h, but a BOS while the trade is under water does not move the stop (the bot's rule).", "",
              "| plan | period | trades | win rate | PF | avg R | reached 3R | reached 5R | avg days held | return | CAGR | max DD |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for plan in PLANS:
