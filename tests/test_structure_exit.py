@@ -140,16 +140,30 @@ def test_bot_opens_plan_b_trades_by_default(env, monkeypatch):
     assert rows[0]["event"] == "ENTRY" and rows[0]["take_profit"] and "exit B" in rows[0]["trigger"]
 
 
-def test_bos_under_water_does_not_move_stop_through_price():
-    # long from 100 that never gets back above the entry: a 1h BOS at ~98.5
-    # must not lift the stop to 100 (above the price) and close at a loss
+
+def test_bos_under_water_exits_next_candle_with_its_own_label():
+    # long from 100 that never gets back above the entry: the 1h BOS at ~98.5
+    # moves the stop to 100 (through the price) and the next candle exits --
+    # the backtested plan B behaviour, labelled as an under-water exit
     h1 = _h1([100, 94, 97, 92, 98.5, 96, 99, 96.5])
     t = _trade()
     events, done = structure_step(t, h1)
-    assert events == [] and not done
-    assert t["stop_loss"] == 90.0 and t["bos_count"] == 0
-    # the mirror case for a short
-    h1s = _h1([100, 106, 103, 108, 101.5, 104, 101, 103.5])
-    ts_ = _trade(side="SHORT", stop=110.0)
-    events, done = structure_step(ts_, h1s)
-    assert events == [] and not done and ts_["stop_loss"] == 110.0
+    assert done and len(events) == 1
+    assert events[0][0].startswith("under-water BOS exit") and events[0][2] < 100
+
+
+def test_live_under_water_bos_closes_at_market(env):
+    class Ex:
+        def __init__(self):
+            self.closed, self.stops = [], []
+        def close_partial_position(self, *a):
+            self.closed.append(a)
+        def replace_stop_order(self, **k):
+            self.stops.append(k)
+    risk = RiskManager(config.load_config())
+    t = _trade()
+    t["mode"] = "LIVE"
+    risk.state["open_trades"] = [t]
+    ex = Ex()
+    risk.manage_structure_trades("SOL/USDT:USDT", _h1([100, 94, 97, 92, 98.5, 96]), exchange_client=ex)
+    assert len(ex.closed) == 1 and ex.stops == []

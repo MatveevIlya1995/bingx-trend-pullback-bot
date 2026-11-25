@@ -283,14 +283,15 @@ def structure_step(trade: dict, h1: pd.DataFrame, fractal_n: int = 2, simulate_f
                 k0 = int(np.searchsorted(ts, _naive(ref["ts"])))
                 origin = lo[k0:i + 1].min() if is_long else hi[k0:i + 1].max()
                 new = max(origin, entry) if is_long else min(origin, entry)
-            # A BOS while the trade is still under water would put the stop
-            # on the wrong side of the price (a long's stop above the close),
-            # so the next candle "stops out" at a loss. Only move the stop
-            # when the close is already beyond it; otherwise this BOS doesn't
-            # count and the stop stays where it is.
-            if (c[i] > new) if is_long else (c[i] < new):
-                trade["bos_count"] = trade.get("bos_count", 0) + 1
-                trade["stop_loss"] = max(stop, new) if is_long else min(stop, new)
+            # A BOS while the trade is still under water puts the new stop on
+            # the wrong side of the price, so the trade closes on the next
+            # candle. Backtested (Exit plan research run #5) this early exit
+            # is better than skipping the move (+9.0%/yr vs +4.7%/yr), so it
+            # is kept on purpose; it is just labelled as what it is, and a
+            # LIVE trade is closed at market (BingX rejects such a stop).
+            trade["bos_count"] = trade.get("bos_count", 0) + 1
+            trade["stop_loss"] = max(stop, new) if is_long else min(stop, new)
+            trade["under_water_exit"] = (c[i] <= trade["stop_loss"]) if is_long else (c[i] >= trade["stop_loss"])
     return events, done
 
 
@@ -303,6 +304,8 @@ def _naive(t):
 
 
 def _stop_reason(trade):
+    if trade.get("under_water_exit"):
+        return "under-water BOS exit (1h BOS while in loss)"
     if trade.get("bos_count", 0) == 0:
         return "initial stop hit"
     if abs(float(trade["stop_loss"]) - float(trade["entry_price"])) < 1e-12:

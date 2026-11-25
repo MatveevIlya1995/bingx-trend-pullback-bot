@@ -540,6 +540,18 @@ class RiskManager:
                 trade["qty"] = size
             structure_step(trade, h1, self.cfg.fractal_n, simulate_fills=False)
             changed = True
+            if exchange_client is not None and trade.get("under_water_exit"):
+                # the new stop would sit beyond the price and BingX rejects
+                # it, so do what the backtest does: close at market now
+                close_side = "sell" if trade["side"].upper() == "BUY" else "buy"
+                try:
+                    exchange_client.close_partial_position(symbol, close_side, trade["qty"], trade["position_side"])
+                    print(f"[risk] {symbol}: under-water 1h BOS -- closed the position at market.")
+                except Exception as e:
+                    print(f"[risk] {symbol}: could not close on the under-water BOS ({e}); stop left as it was.")
+                    trade["stop_loss"] = old_stop
+                    trade["under_water_exit"] = False
+                continue
             if exchange_client is not None and (trade["stop_loss"] != old_stop or trade["qty"] != old_qty):
                 close_side = "sell" if trade["side"].upper() == "BUY" else "buy"
                 try:
