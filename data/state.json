@@ -33,8 +33,12 @@
       ],
       "structure_from_ts": "2026-11-28T01:00:00",
       "bos_count": 0,
-      "ref_swing": null,
-      "last_structure_ts": "2026-11-28T09:00:00",
+      "ref_swing": {
+        "ts": "2026-11-28T08:00:00",
+        "price": 415.95,
+        "broken": false
+      },
+      "last_structure_ts": "2026-11-28T10:00:00",
       "initial_qty": 0.036433,
       "initial_stop": 492.48844,
       "risk_per_unit": 84.06844000000001,
